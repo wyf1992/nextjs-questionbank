@@ -1,76 +1,68 @@
-import Database from "better-sqlite3";
-import path from "node:path";
+// 导出PostgreSQL数据库连接
+// 为了向后兼容，我们保留这个文件，但实际使用PostgreSQL
+import pool, { initDatabase, query, transaction } from "./db-pg";
 
-const dbPath = path.join(process.cwd(), "questionbank.db");
-const db = new Database(dbPath);
+// 重新导出所有功能
+export { initDatabase, query, transaction };
 
-// 初始化数据库表
-export function initDatabase() {
-  // 题目表
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS questions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK(type IN ('single', 'multiple', 'judge')),
-      content TEXT NOT NULL,
-      options TEXT,
-      correct_answer TEXT NOT NULL,
-      explanation TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+// 为了向后兼容，提供一个默认导出
+// 注意：这不再是一个SQLite数据库对象，而是PostgreSQL连接池
+const db = {
+  // 模拟SQLite的prepare方法
+  prepare: (sql: string) => {
+    // 将SQLite的?占位符转换为PostgreSQL的$1, $2等
+    const convertSql = (sql: string): string => {
+      let paramIndex = 1;
+      return sql.replace(/\?/g, () => `$${paramIndex++}`);
+    };
 
-  // 错题记录表
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS wrong_questions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      question_id INTEGER NOT NULL,
-      user_answer TEXT,
-      wrong_count INTEGER DEFAULT 1,
-      last_wrong_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (question_id) REFERENCES questions(id)
-    )
-  `);
+    const convertedSql = convertSql(sql);
 
-  // 试卷配置表
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS exam_configs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      single_count INTEGER DEFAULT 60,
-      multiple_count INTEGER DEFAULT 30,
-      judge_count INTEGER DEFAULT 10,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+    return {
+      all: async (...params: unknown[]) => {
+        const result = await query(convertedSql, params);
+        return result.rows;
+      },
+      get: async (...params: unknown[]) => {
+        const result = await query(convertedSql, params);
+        return result.rows[0] || null;
+      },
+      run: async (...params: unknown[]) => {
+        const result = await query(convertedSql, params);
+        // 对于INSERT语句，返回包含id和changes的对象
+        if (
+          convertedSql.toUpperCase().includes("INSERT") &&
+          convertedSql.toUpperCase().includes("RETURNING")
+        ) {
+          return result.rows[0] || { changes: result.rowCount || 0 };
+        }
+        return { changes: result.rowCount || 0 };
+      },
+    };
+  },
+  // 模拟SQLite的exec方法
+  exec: async (sql: string) => {
+    await query(sql);
+  },
+  // 模拟SQLite的transaction方法
+  transaction: <T>(callback: (statements: any) => Promise<T> | T) => {
+    return async (...args: unknown[]): Promise<T> => {
+      return await transaction(async (client) => {
+        // 创建一个包装器来模拟SQLite的事务API
+        const txWrapper = {
+          run: (sql: string, ...params: unknown[]) => {
+            return client.query(sql, params);
+          },
+        };
+        return await callback(txWrapper);
+      });
+    };
+  },
+};
 
-  // 试卷记录表
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS exam_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      config_id INTEGER NOT NULL,
-      questions TEXT NOT NULL,
-      answers TEXT,
-      score REAL,
-      completed_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (config_id) REFERENCES exam_configs(id)
-    )
-  `);
-
-  // 练习记录表
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS practice_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      question_id INTEGER NOT NULL,
-      user_answer TEXT NOT NULL,
-      is_correct INTEGER NOT NULL,
-      practiced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (question_id) REFERENCES questions(id)
-    )
-  `);
-}
-
-// 初始化数据库
-initDatabase();
+// 初始化数据库（异步）
+initDatabase().catch((error) => {
+  console.error("Failed to initialize PostgreSQL database:", error);
+});
 
 export default db;

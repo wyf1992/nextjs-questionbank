@@ -32,14 +32,14 @@ export async function GET(request: NextRequest) {
     params.push(limit, offset);
 
     const stmt = db.prepare(query);
-    const questions = stmt.all(...params) as QuestionRow[];
+    const questions = (await stmt.all(...params)) as QuestionRow[];
 
     // 获取总数
     let countQuery = "SELECT COUNT(*) as total FROM questions";
     if (type && ["single", "multiple", "judge"].includes(type)) {
       countQuery += " WHERE type = ?";
       const countStmt = db.prepare(countQuery);
-      const result = countStmt.get(type) as { total: number };
+      const result = (await countStmt.get(type)) as { total: number };
       const total = result.total;
 
       return NextResponse.json({
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       });
     } else {
       const countStmt = db.prepare(countQuery);
-      const result = countStmt.get() as { total: number };
+      const result = (await countStmt.get()) as { total: number };
       const total = result.total;
 
       return NextResponse.json({
@@ -94,9 +94,9 @@ export async function POST(request: NextRequest) {
       VALUES (?, ?, ?, ?, ?)
     `);
 
-    const insertMany = db.transaction((questions: ImportQuestion[]) => {
+    const insertMany = db.transaction(async (questions: ImportQuestion[]) => {
       for (const q of questions) {
-        stmt.run(
+        await stmt.run(
           q.type,
           q.content,
           q.options ? JSON.stringify(q.options) : null,
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    insertMany(questions);
+    await insertMany(questions);
 
     return NextResponse.json({
       success: true,
@@ -133,7 +133,7 @@ export async function PUT(request: NextRequest) {
       WHERE id = ?
     `);
 
-    stmt.run(
+    await stmt.run(
       question.type,
       question.content,
       question.options ? JSON.stringify(question.options) : null,
@@ -163,10 +163,10 @@ export async function DELETE(request: NextRequest) {
       }
 
       // 删除所有相关表中的数据（需要按外键约束顺序删除）
-      db.exec("DELETE FROM practice_records");
-      db.exec("DELETE FROM wrong_questions");
-      db.exec("DELETE FROM exam_records");
-      db.exec("DELETE FROM questions");
+      await db.exec("DELETE FROM practice_records");
+      await db.exec("DELETE FROM wrong_questions");
+      await db.exec("DELETE FROM exam_records");
+      await db.exec("DELETE FROM questions");
 
       return NextResponse.json({
         success: true,
@@ -180,7 +180,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const stmt = db.prepare("DELETE FROM questions WHERE id = ?");
-    stmt.run(id);
+    await stmt.run(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

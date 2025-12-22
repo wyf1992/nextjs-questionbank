@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     const judge = judgeCount || 10;
 
     // 获取各类型题目
+    // PostgreSQL使用RANDOM()而不是RANDOM()
     const singleStmt = db.prepare(
       "SELECT * FROM questions WHERE type = 'single' ORDER BY RANDOM() LIMIT ?"
     );
@@ -37,9 +38,11 @@ export async function POST(request: NextRequest) {
       "SELECT * FROM questions WHERE type = 'judge' ORDER BY RANDOM() LIMIT ?"
     );
 
-    const singleQuestions = singleStmt.all(single) as QuestionRow[];
-    const multipleQuestions = multipleStmt.all(multiple) as QuestionRow[];
-    const judgeQuestions = judgeStmt.all(judge) as QuestionRow[];
+    const singleQuestions = (await singleStmt.all(single)) as QuestionRow[];
+    const multipleQuestions = (await multipleStmt.all(
+      multiple
+    )) as QuestionRow[];
+    const judgeQuestions = (await judgeStmt.all(judge)) as QuestionRow[];
 
     // 检查题目数量是否足够
     if (
@@ -63,10 +66,11 @@ export async function POST(request: NextRequest) {
     // 保存试卷配置
     const configStmt = db.prepare(`
       INSERT INTO exam_configs (name, single_count, multiple_count, judge_count)
-      VALUES (?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
     `);
-    const result = configStmt.run(name, single, multiple, judge);
-    const configId = result.lastInsertRowid;
+    const result = await configStmt.run(name, single, multiple, judge);
+    const configId = result.id;
 
     // 组合所有题目
     const allQuestions = [
@@ -78,16 +82,17 @@ export async function POST(request: NextRequest) {
     // 创建试卷记录
     const examStmt = db.prepare(`
       INSERT INTO exam_records (config_id, questions)
-      VALUES (?, ?)
+      VALUES ($1, $2)
+      RETURNING id
     `);
-    const examResult = examStmt.run(
+    const examResult = await examStmt.run(
       configId,
       JSON.stringify(allQuestions.map((q: QuestionRow) => q.id))
     );
 
     return NextResponse.json({
       success: true,
-      examId: examResult.lastInsertRowid,
+      examId: examResult.id,
       configId,
       questions: allQuestions.map((q: QuestionRow) => ({
         ...q,
@@ -119,7 +124,9 @@ export async function GET(request: NextRequest) {
         JOIN exam_configs ec ON er.config_id = ec.id
         WHERE er.id = ?
       `);
-      const exam = stmt.get(examId) as Record<string, unknown> | undefined;
+      const exam = (await stmt.get(examId)) as
+        | Record<string, unknown>
+        | undefined;
 
       if (!exam) {
         return NextResponse.json({ error: "试卷不存在" }, { status: 404 });
@@ -131,7 +138,7 @@ export async function GET(request: NextRequest) {
 
       for (const id of questionIds) {
         const qStmt = db.prepare("SELECT * FROM questions WHERE id = ?");
-        const question = qStmt.get(id) as QuestionRow | undefined;
+        const question = (await qStmt.get(id)) as QuestionRow | undefined;
         if (question) {
           questions.push(question);
         }
@@ -158,7 +165,7 @@ export async function GET(request: NextRequest) {
         JOIN exam_configs ec ON er.config_id = ec.id
         ORDER BY er.created_at DESC
       `);
-      const exams = stmt.all();
+      const exams = await stmt.all();
 
       return NextResponse.json({ exams });
     }
@@ -179,7 +186,9 @@ export async function PUT(request: NextRequest) {
 
     // 获取试卷信息
     const examStmt = db.prepare("SELECT * FROM exam_records WHERE id = ?");
-    const exam = examStmt.get(examId) as Record<string, unknown> | undefined;
+    const exam = (await examStmt.get(examId)) as
+      | Record<string, unknown>
+      | undefined;
 
     if (!exam) {
       return NextResponse.json({ error: "试卷不存在" }, { status: 404 });
@@ -192,7 +201,9 @@ export async function PUT(request: NextRequest) {
 
     for (const id of questionIds) {
       const qStmt = db.prepare("SELECT * FROM questions WHERE id = ?");
-      const question = qStmt.get(id) as Record<string, unknown> | undefined;
+      const question = (await qStmt.get(id)) as
+        | Record<string, unknown>
+        | undefined;
 
       if (question && answers[id]) {
         const userAnswer = answers[id];
@@ -212,7 +223,7 @@ export async function PUT(request: NextRequest) {
       SET answers = ?, score = ?, completed_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
-    updateStmt.run(JSON.stringify(answers), score, examId);
+    await updateStmt.run(JSON.stringify(answers), score, examId);
 
     return NextResponse.json({
       success: true,
