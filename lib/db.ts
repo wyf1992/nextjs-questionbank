@@ -45,13 +45,23 @@ const db = {
     await query(sql);
   },
   // 模拟SQLite的transaction方法
-  transaction: <T>(callback: (statements: any) => Promise<T> | T) => {
+  transaction: <T>(
+    callback: (statements: {
+      run: (sql: string, ...params: unknown[]) => Promise<unknown>;
+    }) => Promise<T> | T
+  ) => {
     return async (...args: unknown[]): Promise<T> => {
       return await transaction(async (client) => {
         // 创建一个包装器来模拟SQLite的事务API
         const txWrapper = {
           run: (sql: string, ...params: unknown[]) => {
-            return client.query(sql, params);
+            // 将SQLite的?占位符转换为PostgreSQL的$1, $2等
+            const convertSql = (sql: string): string => {
+              let paramIndex = 1;
+              return sql.replace(/\?/g, () => `$${paramIndex++}`);
+            };
+            const convertedSql = convertSql(sql);
+            return client.query(convertedSql, params);
           },
         };
         return await callback(txWrapper);
