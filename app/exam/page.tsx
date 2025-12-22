@@ -11,6 +11,9 @@ export default function ExamPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [examData, setExamData] = useState<any>(null);
+  const [examRecords, setExamRecords] = useState<any[]>([]);
+  const [showRecords, setShowRecords] = useState(false);
+  const [recordsLoading, setRecordsLoading] = useState(false);
 
   const handleGenerateExam = async () => {
     if (!examName.trim()) {
@@ -53,9 +56,30 @@ export default function ExamPage() {
 
   const handleStartExam = () => {
     if (examData) {
-      // 这里可以跳转到考试页面，或者直接在当前页面开始考试
-      alert(`开始考试：${examName}，功能待完善`);
+      // 跳转到考试页面
+      window.location.href = `/exam/take/${examData.examId}`;
     }
+  };
+
+  const loadExamRecords = async () => {
+    setRecordsLoading(true);
+    try {
+      const response = await fetch("/api/exam");
+      const data = await response.json();
+      if (data.exams) {
+        setExamRecords(data.exams);
+        setShowRecords(true);
+      }
+    } catch (error) {
+      console.error("加载考试记录失败:", error);
+      setMessage("加载考试记录失败");
+    } finally {
+      setRecordsLoading(false);
+    }
+  };
+
+  const viewExamResult = (examId: number) => {
+    window.location.href = `/exam/result/${examId}`;
   };
 
   return (
@@ -71,7 +95,16 @@ export default function ExamPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6">模拟考试</h1>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-800">模拟考试</h1>
+            <button
+              onClick={loadExamRecords}
+              disabled={recordsLoading}
+              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 disabled:bg-gray-400"
+            >
+              {recordsLoading ? "加载中..." : "查看考试记录"}
+            </button>
+          </div>
 
           {!examData ? (
             <div className="space-y-6">
@@ -268,6 +301,112 @@ export default function ExamPage() {
                   className="flex-1 bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 font-medium"
                 >
                   重新配置
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showRecords && (
+            <div className="mt-8 border-t pt-8">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                考试记录
+              </h2>
+              {examRecords.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  暂无考试记录
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {examRecords.map((record) => (
+                    <div
+                      key={record.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+                    >
+                      <div className="flex justify-between items-center mb-2">
+                        <div>
+                          <h3 className="font-medium text-gray-800">
+                            {record.name}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            试卷ID: {record.id} | 创建时间:{" "}
+                            {new Date(record.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          {record.score !== null ? (
+                            <>
+                              <div
+                                className={`text-lg font-bold ${
+                                  record.score >= 60
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {record.score.toFixed(1)} 分
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {record.completed_at
+                                  ? `完成时间: ${new Date(
+                                      record.completed_at
+                                    ).toLocaleString()}`
+                                  : "未完成"}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-gray-500">未完成</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center mt-4">
+                        <div className="text-sm text-gray-600">
+                          单选题: {record.single_count} | 多选题:{" "}
+                          {record.multiple_count} | 判断题: {record.judge_count}
+                        </div>
+                        <div className="flex gap-2">
+                          {record.score === null ? (
+                            <button
+                              onClick={() =>
+                                (window.location.href = `/exam/take/${record.id}`)
+                              }
+                              className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                            >
+                              继续考试
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => viewExamResult(record.id)}
+                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                            >
+                              查看详情
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  "确定要删除这条考试记录吗？此操作不可恢复。"
+                                )
+                              ) {
+                                // 这里可以添加删除功能
+                                alert("删除功能待实现");
+                              }
+                            }}
+                            className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => setShowRecords(false)}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  隐藏记录
                 </button>
               </div>
             </div>
