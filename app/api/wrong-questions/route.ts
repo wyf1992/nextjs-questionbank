@@ -30,7 +30,7 @@ export async function GET() {
       ORDER BY wq.last_wrong_at DESC
     `);
 
-    const wrongQuestions = stmt.all() as WrongQuestionRow[];
+    const wrongQuestions = (await stmt.all()) as WrongQuestionRow[];
 
     return NextResponse.json({
       questions: wrongQuestions.map((q) => ({
@@ -55,7 +55,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const stmt = db.prepare("DELETE FROM wrong_questions WHERE id = ?");
-    stmt.run(id);
+    await stmt.run(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

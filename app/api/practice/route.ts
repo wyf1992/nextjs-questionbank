@@ -22,15 +22,16 @@ export async function GET(request: NextRequest) {
     const params: (string | number)[] = [];
 
     if (type && ["single", "multiple", "judge"].includes(type)) {
-      query += " WHERE type = ?";
+      query += " WHERE type = $1";
       params.push(type);
     }
 
     query += " ORDER BY RANDOM() LIMIT ?";
     params.push(count);
 
+    // 使用异步查询
     const stmt = db.prepare(query);
-    const questions = stmt.all(...params) as QuestionRow[];
+    const questions = (await stmt.all(...params)) as QuestionRow[];
 
     return NextResponse.json({
       questions: questions.map((q) => ({
@@ -58,14 +59,14 @@ export async function POST(request: NextRequest) {
       INSERT INTO practice_records (question_id, user_answer, is_correct)
       VALUES (?, ?, ?)
     `);
-    practiceStmt.run(questionId, userAnswer, isCorrect ? 1 : 0);
+    await practiceStmt.run(questionId, userAnswer, isCorrect);
 
     // 如果答错，添加到错题本
     if (!isCorrect) {
       const checkStmt = db.prepare(
         "SELECT * FROM wrong_questions WHERE question_id = ?"
       );
-      const existing = checkStmt.get(questionId);
+      const existing = await checkStmt.get(questionId);
 
       if (existing) {
         // 更新错题记录
@@ -74,14 +75,14 @@ export async function POST(request: NextRequest) {
           SET wrong_count = wrong_count + 1, user_answer = ?, last_wrong_at = CURRENT_TIMESTAMP
           WHERE question_id = ?
         `);
-        updateStmt.run(userAnswer, questionId);
+        await updateStmt.run(userAnswer, questionId);
       } else {
         // 新增错题记录
         const insertStmt = db.prepare(`
           INSERT INTO wrong_questions (question_id, user_answer)
           VALUES (?, ?)
         `);
-        insertStmt.run(questionId, userAnswer);
+        await insertStmt.run(questionId, userAnswer);
       }
     }
 
