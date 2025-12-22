@@ -89,14 +89,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "题目数据无效" }, { status: 400 });
     }
 
-    const stmt = db.prepare(`
-      INSERT INTO questions (type, content, options, correct_answer, explanation)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
-    const insertMany = db.transaction(async (questions: ImportQuestion[]) => {
+    const insertMany = db.transaction(async (tx) => {
       for (const q of questions) {
-        await stmt.run(
+        await tx.run(
+          `INSERT INTO questions (type, content, options, correct_answer, explanation) VALUES (?, ?, ?, ?, ?)`,
           q.type,
           q.content,
           q.options ? JSON.stringify(q.options) : null,
@@ -106,7 +102,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    await insertMany(questions);
+    await insertMany();
 
     return NextResponse.json({
       success: true,
