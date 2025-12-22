@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 
+interface QuestionRow {
+  id: number;
+  type: "single" | "multiple" | "judge";
+  content: string;
+  options: string | null;
+  correct_answer: string;
+  explanation: string | null;
+  created_at: string;
+}
+
 // 生成试卷
 export async function POST(request: NextRequest) {
   try {
@@ -27,9 +37,9 @@ export async function POST(request: NextRequest) {
       "SELECT * FROM questions WHERE type = 'judge' ORDER BY RANDOM() LIMIT ?"
     );
 
-    const singleQuestions = singleStmt.all(single);
-    const multipleQuestions = multipleStmt.all(multiple);
-    const judgeQuestions = judgeStmt.all(judge);
+    const singleQuestions = singleStmt.all(single) as QuestionRow[];
+    const multipleQuestions = multipleStmt.all(multiple) as QuestionRow[];
+    const judgeQuestions = judgeStmt.all(judge) as QuestionRow[];
 
     // 检查题目数量是否足够
     if (
@@ -72,16 +82,16 @@ export async function POST(request: NextRequest) {
     `);
     const examResult = examStmt.run(
       configId,
-      JSON.stringify(allQuestions.map((q: Record<string, unknown>) => q.id))
+      JSON.stringify(allQuestions.map((q: QuestionRow) => q.id))
     );
 
     return NextResponse.json({
       success: true,
       examId: examResult.lastInsertRowid,
       configId,
-      questions: allQuestions.map((q: Record<string, unknown>) => ({
+      questions: allQuestions.map((q: QuestionRow) => ({
         ...q,
-        options: q.options ? JSON.parse(q.options as string) : null,
+        options: q.options ? JSON.parse(q.options) : null,
       })),
     });
   } catch (error) {
@@ -117,11 +127,11 @@ export async function GET(request: NextRequest) {
 
       // 获取题目详情
       const questionIds = JSON.parse(exam.questions as string);
-      const questions = [];
+      const questions: QuestionRow[] = [];
 
       for (const id of questionIds) {
         const qStmt = db.prepare("SELECT * FROM questions WHERE id = ?");
-        const question = qStmt.get(id);
+        const question = qStmt.get(id) as QuestionRow | undefined;
         if (question) {
           questions.push(question);
         }
@@ -129,9 +139,9 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         ...exam,
-        questions: questions.map((q: Record<string, unknown>) => ({
+        questions: questions.map((q: QuestionRow) => ({
           ...q,
-          options: q.options ? JSON.parse(q.options as string) : null,
+          options: q.options ? JSON.parse(q.options) : null,
         })),
         answers: exam.answers ? JSON.parse(exam.answers as string) : null,
       });
