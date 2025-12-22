@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 
+interface WrongQuestionRow {
+  id: number;
+  question_id: number;
+  user_answer: string | null;
+  wrong_count: number;
+  last_wrong_at: string;
+  type: "single" | "multiple" | "judge";
+  content: string;
+  options: string | null;
+  correct_answer: string;
+  explanation: string | null;
+}
+
 // 获取错题列表
 export async function GET() {
   try {
@@ -17,12 +30,12 @@ export async function GET() {
       ORDER BY wq.last_wrong_at DESC
     `);
 
-    const wrongQuestions = stmt.all();
+    const wrongQuestions = stmt.all() as WrongQuestionRow[];
 
     return NextResponse.json({
-      questions: wrongQuestions.map((q: Record<string, unknown>) => ({
+      questions: wrongQuestions.map((q) => ({
         ...q,
-        options: q.options ? JSON.parse(q.options as string) : null,
+        options: q.options ? JSON.parse(q.options) : null,
       })),
     });
   } catch (error) {

@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 
+interface QuestionRow {
+  id: number;
+  type: "single" | "multiple" | "judge";
+  content: string;
+  options: string | null;
+  correct_answer: string;
+  explanation: string | null;
+  created_at: string;
+}
+
 // 获取随机题目进行练习
 export async function GET(request: NextRequest) {
   try {
@@ -9,7 +19,7 @@ export async function GET(request: NextRequest) {
     const count = parseInt(searchParams.get("count") || "10");
 
     let query = "SELECT * FROM questions";
-    const params: string[] = [];
+    const params: (string | number)[] = [];
 
     if (type && ["single", "multiple", "judge"].includes(type)) {
       query += " WHERE type = ?";
@@ -17,15 +27,15 @@ export async function GET(request: NextRequest) {
     }
 
     query += " ORDER BY RANDOM() LIMIT ?";
-    params.push(count.toString());
+    params.push(count);
 
     const stmt = db.prepare(query);
-    const questions = stmt.all(...params);
+    const questions = stmt.all(...params) as QuestionRow[];
 
     return NextResponse.json({
-      questions: questions.map((q: Record<string, unknown>) => ({
+      questions: questions.map((q) => ({
         ...q,
-        options: q.options ? JSON.parse(q.options as string) : null,
+        options: q.options ? JSON.parse(q.options) : null,
       })),
     });
   } catch (error) {
