@@ -409,7 +409,7 @@ export default function TakeExamPage() {
                 <ul className="text-sm text-blue-700 space-y-1">
                   <li>• 单选题：选择一个正确答案</li>
                   <li>• 多选题：选择一个或多个正确答案</li>
-                  <li>• 判断题：选择"正确"或"错误"</li>
+                  <li>• 判断题：选择&quot;正确&quot;或&quot;错误&quot;</li>
                   <li>• 点击题目导航中的数字可以快速跳转到对应题目</li>
                   <li>• 已作答的题目会显示为绿色</li>
                   <li>• 时间结束后会自动提交试卷</li>

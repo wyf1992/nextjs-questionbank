@@ -236,3 +236,51 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "提交试卷失败" }, { status: 500 });
   }
 }
+
+// 删除试卷记录
+export async function DELETE(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const examId = searchParams.get("examId");
+
+    if (!examId) {
+      return NextResponse.json({ error: "试卷ID不能为空" }, { status: 400 });
+    }
+
+    // 检查试卷是否存在
+    const examStmt = db.prepare("SELECT * FROM exam_records WHERE id = ?");
+    const exam = (await examStmt.get(examId)) as
+      | Record<string, unknown>
+      | undefined;
+
+    if (!exam) {
+      return NextResponse.json({ error: "试卷不存在" }, { status: 404 });
+    }
+
+    // 删除试卷记录
+    const deleteStmt = db.prepare("DELETE FROM exam_records WHERE id = ?");
+    await deleteStmt.run(examId);
+
+    // 如果该试卷配置没有其他试卷记录，也可以删除配置
+    const countStmt = db.prepare(
+      "SELECT COUNT(*) as count FROM exam_records WHERE config_id = ?"
+    );
+    const configId = exam.config_id;
+    const countResult = (await countStmt.get(configId)) as { count: number };
+
+    if (countResult.count === 0) {
+      const deleteConfigStmt = db.prepare(
+        "DELETE FROM exam_configs WHERE id = ?"
+      );
+      await deleteConfigStmt.run(configId);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "试卷记录删除成功",
+    });
+  } catch (error) {
+    console.error("删除试卷记录失败:", error);
+    return NextResponse.json({ error: "删除试卷记录失败" }, { status: 500 });
+  }
+}
