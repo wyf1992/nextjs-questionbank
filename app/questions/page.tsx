@@ -188,7 +188,7 @@ export default function QuestionsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4 max-w-6xl">
+      <div className="container mx-auto px-2 md:px-4 max-w-6xl">
         <div className="mb-6">
           <Link
             href="/"
@@ -198,7 +198,7 @@ export default function QuestionsPage() {
           </Link>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white rounded-lg shadow-lg p-2 md:p-8">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold text-gray-800">题库管理</h1>
             <div className="text-sm text-gray-600">共 {total} 道题目</div>
@@ -257,18 +257,18 @@ export default function QuestionsPage() {
           ) : (
             <>
               <div className="space-y-6">
-                {questions.map((q) => (
+                {questions.map((q, index) => (
                   <div
                     key={q.id}
-                    className="border border-gray-200 rounded-lg p-6 hover:border-blue-300 transition-colors"
+                    className="border border-gray-200 rounded-lg p-2 md:p-4 hover:border-blue-300 transition-colors"
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
-                        <span className="text-lg font-semibold text-gray-700">
-                          ID: {q.id}
+                        <span className="text-base font-semibold text-gray-700">
+                          {(page - 1) * limit + index + 1}.
                         </span>
                         <span
-                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          className={`px-2 py-1 rounded-full text-sm font-medium ${
                             q.type === "single"
                               ? "bg-blue-100 text-blue-800"
                               : q.type === "multiple"
