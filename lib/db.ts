@@ -6,6 +6,7 @@ const db = new Database(dbPath);
 
 // 初始化数据库表
 export function initDatabase() {
+  console.log("Initializing database...");
   // 题目表
   db.exec(`
     CREATE TABLE IF NOT EXISTS questions (
@@ -68,6 +69,8 @@ export function initDatabase() {
       FOREIGN KEY (question_id) REFERENCES questions(id)
     )
   `);
+
+  console.log("Database initialized.");
 }
 
 // 初始化数据库

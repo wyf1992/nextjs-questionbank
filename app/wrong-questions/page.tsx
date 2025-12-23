@@ -66,11 +66,6 @@ export default function WrongQuestionsPage() {
     }
   };
 
-  const handlePracticeAgain = async (questionId: number) => {
-    // 这里可以跳转到练习页面，或者直接在当前页面练习
-    alert(`开始练习题目 ${questionId}，功能待完善`);
-  };
-
   const getTypeLabel = (type: string) => {
     switch (type) {
       case "single":
@@ -117,18 +112,18 @@ export default function WrongQuestionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="mb-6">
+    <div className="min-h-screen bg-gray-50 py-4 md:py-8">
+      <div className="container mx-auto px-3 md:px-4 max-w-6xl">
+        <div className="mb-4 md:mb-6">
           <Link
             href="/"
-            className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
+            className="text-blue-600 hover:text-blue-800 flex items-center gap-2 text-sm md:text-base"
           >
             ← 返回首页
           </Link>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white rounded-lg shadow-lg p-4 md:p-8">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold text-gray-800">我的错题本</h1>
             <div className="text-sm text-gray-600">
@@ -170,10 +165,10 @@ export default function WrongQuestionsPage() {
               {questions.map((q) => (
                 <div
                   key={q.id}
-                  className="border border-gray-200 rounded-lg p-6 hover:border-red-300 transition-colors"
+                  className="border border-gray-200 rounded-lg p-4 md:p-6 hover:border-red-300 transition-colors"
                 >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
+                  <div className="flex   justify-between items-start mb-4">
+                    <div className="flex flex-col items-start md:flex-row md:items-center gap-1 md:gap-3">
                       <span
                         className={`px-3 py-1 rounded-full text-sm font-medium ${
                           q.type === "single"
@@ -185,20 +180,16 @@ export default function WrongQuestionsPage() {
                       >
                         {getTypeLabel(q.type)}
                       </span>
-                      <span className="text-sm text-gray-600">
-                        错题次数：{q.wrong_count}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        上次出错：{formatDate(q.last_wrong_at)}
-                      </span>
+                      <div className="flex gap-3">
+                        <span className="text-sm text-gray-600">
+                          次数: {q.wrong_count}
+                        </span>
+                        <span className="text-sm text-gray-600">
+                          最近时间: {formatDate(q.last_wrong_at)}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handlePracticeAgain(q.question_id)}
-                        className="text-blue-600 hover:text-blue-800 text-sm"
-                      >
-                        重新练习
-                      </button>
                       <button
                         onClick={() => handleDelete(q.id)}
                         className="text-red-600 hover:text-red-800 text-sm"
@@ -209,10 +200,12 @@ export default function WrongQuestionsPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <p className="text-gray-800 text-lg">{q.content}</p>
+                    <p className="text-gray-800 text-base md:text-lg">
+                      {q.content}
+                    </p>
 
                     {q.options && (
-                      <div className="space-y-2 ml-4">
+                      <div className="space-y-2 ml-2 md:ml-4">
                         {q.options.map((opt, index) => {
                           const optionLabel = String.fromCharCode(65 + index);
                           const isCorrect =
@@ -243,7 +236,7 @@ export default function WrongQuestionsPage() {
                       </div>
                     )}
 
-                    <div className="flex gap-4 text-sm">
+                    <div className="flex flex-col md:flex-row gap-2 md:gap-4 text-sm">
                       <span className="text-green-600 font-medium">
                         正确答案：{q.correct_answer}
                       </span>
@@ -253,8 +246,8 @@ export default function WrongQuestionsPage() {
                     </div>
 
                     {q.explanation && (
-                      <div className="bg-blue-50 p-3 rounded-lg">
-                        <span className="text-sm text-gray-600">
+                      <div className="bg-blue-50 p-2 md:p-3 rounded-lg">
+                        <span className="text-xs md:text-sm text-gray-600">
                           解析：{q.explanation}
                         </span>
                       </div>

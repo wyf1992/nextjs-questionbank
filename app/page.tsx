@@ -14,19 +14,6 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {/* 导入题库 */}
-          <Link href="/import">
-            <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-blue-500">
-              <div className="text-4xl mb-4">📝</div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                导入题库
-              </h2>
-              <p className="text-gray-600">
-                上传 Word 文档，自动解析题目，支持预览和编辑后入库
-              </p>
-            </div>
-          </Link>
-
           {/* 开始刷题 */}
           <Link href="/practice">
             <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-green-500">
@@ -36,19 +23,6 @@ export default function Home() {
               </h2>
               <p className="text-gray-600">
                 随机抽取题目进行练习，支持按题型筛选，实时反馈答题结果
-              </p>
-            </div>
-          </Link>
-
-          {/* 错题本 */}
-          <Link href="/wrong-questions">
-            <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-red-500">
-              <div className="text-4xl mb-4">❌</div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                我的错题
-              </h2>
-              <p className="text-gray-600">
-                查看历史错题记录，重点复习薄弱环节，提高答题准确率
               </p>
             </div>
           </Link>
@@ -66,15 +40,15 @@ export default function Home() {
             </div>
           </Link>
 
-          {/* 题库管理 */}
-          <Link href="/questions">
-            <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-yellow-500">
-              <div className="text-4xl mb-4">📚</div>
+          {/* 错题本 */}
+          <Link href="/wrong-questions">
+            <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-red-500">
+              <div className="text-4xl mb-4">❌</div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                题库管理
+                我的错题
               </h2>
               <p className="text-gray-600">
-                查看、编辑、删除题目，管理题库内容，支持分类筛选
+                查看历史错题记录，重点复习薄弱环节，提高答题准确率
               </p>
             </div>
           </Link>
@@ -88,6 +62,32 @@ export default function Home() {
               </h2>
               <p className="text-gray-600">
                 查看历史考试记录，分析答题情况，追踪学习进度
+              </p>
+            </div>
+          </Link>
+
+          {/* 题库管理 */}
+          <Link href="/questions">
+            <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-yellow-500">
+              <div className="text-4xl mb-4">📚</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                题库管理
+              </h2>
+              <p className="text-gray-600">
+                查看、编辑、删除题目，管理题库内容，支持分类筛选
+              </p>
+            </div>
+          </Link>
+
+          {/* 导入题库 */}
+          <Link href="/import">
+            <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-blue-500">
+              <div className="text-4xl mb-4">📝</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                导入题库
+              </h2>
+              <p className="text-gray-600">
+                上传 Word 文档，自动解析题目，支持预览和编辑后入库
               </p>
             </div>
           </Link>

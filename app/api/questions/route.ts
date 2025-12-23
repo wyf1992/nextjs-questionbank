@@ -76,7 +76,8 @@ interface ImportQuestion {
   type: "single" | "multiple" | "judge";
   content: string;
   options?: string[];
-  correctAnswer: string;
+  correctAnswer?: string;
+  correct_answer?: string;
   explanation?: string;
 }
 
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
           q.type,
           q.content,
           q.options ? JSON.stringify(q.options) : null,
-          q.correctAnswer,
+          q.correctAnswer || q.correct_answer, // 支持两种字段名
           q.explanation || null
         );
       }
@@ -137,7 +138,7 @@ export async function PUT(request: NextRequest) {
       question.type,
       question.content,
       question.options ? JSON.stringify(question.options) : null,
-      question.correctAnswer,
+      question.correct_answer || question.correctAnswer, // 支持两种字段名
       question.explanation || null,
       question.id
     );

@@ -187,18 +187,18 @@ export default function QuestionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="mb-6">
+    <div className="min-h-screen bg-gray-50 py-4 md:py-8">
+      <div className="container mx-auto px-3 md:px-4 max-w-6xl">
+        <div className="mb-4 md:mb-6">
           <Link
             href="/"
-            className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
+            className="text-blue-600 hover:text-blue-800 flex items-center gap-2 text-sm md:text-base"
           >
             ← 返回首页
           </Link>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white rounded-lg shadow-lg p-4 md:p-8">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold text-gray-800">题库管理</h1>
             <div className="text-sm text-gray-600">共 {total} 道题目</div>
@@ -257,79 +257,85 @@ export default function QuestionsPage() {
           ) : (
             <>
               <div className="space-y-6">
-                {questions.map((q) => (
-                  <div
-                    key={q.id}
-                    className="border border-gray-200 rounded-lg p-6 hover:border-blue-300 transition-colors"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg font-semibold text-gray-700">
-                          ID: {q.id}
-                        </span>
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            q.type === "single"
-                              ? "bg-blue-100 text-blue-800"
-                              : q.type === "multiple"
-                              ? "bg-purple-100 text-purple-800"
-                              : "bg-green-100 text-green-800"
-                          }`}
-                        >
-                          {getTypeLabel(q.type)}
-                        </span>
-                        <span className="text-sm text-gray-600">
-                          创建时间：{formatDate(q.created_at)}
-                        </span>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setEditingQuestion(q)}
-                          className="text-blue-600 hover:text-blue-800 text-sm"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => handleDelete(q.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <p className="text-gray-800 text-lg">{q.content}</p>
-
-                      {q.options && (
-                        <div className="space-y-2 ml-4">
-                          {q.options.map((opt, index) => (
-                            <div key={index} className="text-gray-700">
-                              <span className="font-medium">
-                                {String.fromCharCode(65 + index)}.
-                              </span>{" "}
-                              {opt}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex gap-4 text-sm">
-                        <span className="text-green-600 font-medium">
-                          正确答案：{q.correct_answer}
-                        </span>
-                      </div>
-
-                      {q.explanation && (
-                        <div className="bg-blue-50 p-3 rounded-lg">
+                {questions.map((q, index) => {
+                  // 计算序号：(当前页数-1) * 每页数量 + 当前索引 + 1
+                  const serialNumber = (page - 1) * limit + index + 1;
+                  return (
+                    <div
+                      key={q.id}
+                      className="border border-gray-200 rounded-lg p-4 md:p-6 hover:border-blue-300 transition-colors"
+                    >
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-semibold text-gray-700">
+                            第 {serialNumber} 题
+                          </span>
+                          <span
+                            className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              q.type === "single"
+                                ? "bg-blue-100 text-blue-800"
+                                : q.type === "multiple"
+                                ? "bg-purple-100 text-purple-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {getTypeLabel(q.type)}
+                          </span>
                           <span className="text-sm text-gray-600">
-                            解析：{q.explanation}
+                            {formatDate(q.created_at)}
                           </span>
                         </div>
-                      )}
+                        <div className="flex  gap-2 items-center">
+                          <button
+                            onClick={() => setEditingQuestion(q)}
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                          >
+                            编辑
+                          </button>
+                          <button
+                            onClick={() => handleDelete(q.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <p className="text-gray-800 text-base md:text-lg">
+                          {q.content}
+                        </p>
+
+                        {q.options && (
+                          <div className="space-y-2 ml-2 md:ml-4">
+                            {q.options.map((opt, optIndex) => (
+                              <div key={optIndex} className="text-gray-700">
+                                <span className="font-medium">
+                                  {String.fromCharCode(65 + optIndex)}.
+                                </span>{" "}
+                                {opt}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex flex-col md:flex-row gap-2 md:gap-4 text-sm">
+                          <span className="text-green-600 font-medium">
+                            正确答案：{q.correct_answer}
+                          </span>
+                        </div>
+
+                        {q.explanation && (
+                          <div className="bg-blue-50 p-2 md:p-3 rounded-lg">
+                            <span className="text-xs md:text-sm text-gray-600">
+                              解析：{q.explanation}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {totalPages > 1 && (
@@ -360,8 +366,8 @@ export default function QuestionsPage() {
 
       {/* 编辑模态框 */}
       {editingQuestion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 md:p-4 z-50">
+          <div className="bg-white rounded-lg shadow-lg p-4 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">编辑题目</h2>
 
             <div className="space-y-4">
@@ -397,7 +403,7 @@ export default function QuestionsPage() {
                       content: e.target.value,
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg p-2"
+                  className="w-full border border-gray-300 rounded-lg p-2 text-sm md:text-base"
                   rows={3}
                 />
               </div>
@@ -423,7 +429,7 @@ export default function QuestionsPage() {
                             options: newOptions,
                           });
                         }}
-                        className="flex-1 border border-gray-300 rounded px-2 py-1"
+                        className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm md:text-base"
                       />
                     </div>
                   ))}
@@ -443,7 +449,7 @@ export default function QuestionsPage() {
                       correct_answer: e.target.value,
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg p-2"
+                  className="w-full border border-gray-300 rounded-lg p-2 text-sm md:text-base"
                 />
               </div>
 
@@ -459,7 +465,7 @@ export default function QuestionsPage() {
                       explanation: e.target.value,
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg p-2"
+                  className="w-full border border-gray-300 rounded-lg p-2 text-sm md:text-base"
                   rows={2}
                 />
               </div>

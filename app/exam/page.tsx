@@ -3,6 +3,23 @@
 import { useState } from "react";
 import Link from "next/link";
 
+interface Question {
+  id: number;
+  type: "single" | "multiple" | "judge";
+  content: string;
+  options: string[] | null;
+  correct_answer: string;
+  explanation: string | null;
+}
+
+interface ExamData {
+  success: boolean;
+  examId: number;
+  configId: number;
+  questions: Question[];
+  error?: string;
+}
+
 export default function ExamPage() {
   const [examName, setExamName] = useState("模拟考试");
   const [singleCount, setSingleCount] = useState(60);
@@ -10,7 +27,7 @@ export default function ExamPage() {
   const [judgeCount, setJudgeCount] = useState(10);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [examData, setExamData] = useState<any>(null);
+  const [examData, setExamData] = useState<ExamData | null>(null);
 
   const handleGenerateExam = async () => {
     if (!examName.trim()) {
@@ -53,8 +70,8 @@ export default function ExamPage() {
 
   const handleStartExam = () => {
     if (examData) {
-      // 这里可以跳转到考试页面，或者直接在当前页面开始考试
-      alert(`开始考试：${examName}，功能待完善`);
+      // 跳转到考试页面
+      window.location.href = `/exam/taking/${examData.examId}`;
     }
   };
 
@@ -185,7 +202,7 @@ export default function ExamPage() {
                     <div className="text-2xl font-bold text-blue-600">
                       {
                         examData.questions.filter(
-                          (q: any) => q.type === "single"
+                          (q: Question) => q.type === "single"
                         ).length
                       }
                     </div>
@@ -195,7 +212,7 @@ export default function ExamPage() {
                     <div className="text-2xl font-bold text-purple-600">
                       {
                         examData.questions.filter(
-                          (q: any) => q.type === "multiple"
+                          (q: Question) => q.type === "multiple"
                         ).length
                       }
                     </div>
@@ -205,7 +222,7 @@ export default function ExamPage() {
                     <div className="text-2xl font-bold text-green-600">
                       {
                         examData.questions.filter(
-                          (q: any) => q.type === "judge"
+                          (q: Question) => q.type === "judge"
                         ).length
                       }
                     </div>
@@ -221,34 +238,36 @@ export default function ExamPage() {
                 <h3 className="text-lg font-medium text-gray-800">
                   题目预览（前 5 题）
                 </h3>
-                {examData.questions.slice(0, 5).map((q: any, index: number) => (
-                  <div
-                    key={index}
-                    className="border border-gray-200 rounded-lg p-4"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        第 {index + 1} 题
-                      </span>
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          q.type === "single"
-                            ? "bg-blue-100 text-blue-800"
+                {examData.questions
+                  .slice(0, 5)
+                  .map((q: Question, index: number) => (
+                    <div
+                      key={index}
+                      className="border border-gray-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-gray-700">
+                          第 {index + 1} 题
+                        </span>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            q.type === "single"
+                              ? "bg-blue-100 text-blue-800"
+                              : q.type === "multiple"
+                              ? "bg-purple-100 text-purple-800"
+                              : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {q.type === "single"
+                            ? "单选题"
                             : q.type === "multiple"
-                            ? "bg-purple-100 text-purple-800"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        {q.type === "single"
-                          ? "单选题"
-                          : q.type === "multiple"
-                          ? "多选题"
-                          : "判断题"}
-                      </span>
+                            ? "多选题"
+                            : "判断题"}
+                        </span>
+                      </div>
+                      <p className="text-gray-800">{q.content}</p>
                     </div>
-                    <p className="text-gray-800">{q.content}</p>
-                  </div>
-                ))}
+                  ))}
                 {examData.questions.length > 5 && (
                   <p className="text-sm text-gray-600 text-center">
                     ... 还有 {examData.questions.length - 5} 道题目

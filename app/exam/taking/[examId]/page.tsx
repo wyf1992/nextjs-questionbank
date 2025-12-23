@@ -1,0 +1,452 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+
+interface Question {
+  id: number;
+  type: "single" | "multiple" | "judge";
+  content: string;
+  options: string[] | null;
+  correct_answer: string;
+  explanation: string | null;
+}
+
+interface ExamData {
+  id: number;
+  config_id: number;
+  questions: Question[];
+  answers: Record<number, string> | null;
+  score: number | null;
+  completed_at: string | null;
+  name: string;
+  single_count: number;
+  multiple_count: number;
+  judge_count: number;
+}
+
+export default function ExamTakingPage() {
+  const params = useParams();
+  const router = useRouter();
+  const examId = params.examId as string;
+
+  const [examData, setExamData] = useState<ExamData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(120 * 60); // 120分钟，单位：秒
+
+  // 加载考试数据
+  useEffect(() => {
+    const loadExamData = async () => {
+      try {
+        const response = await fetch(`/api/exam?examId=${examId}`);
+        const data = await response.json();
+
+        if (data.error) {
+          setError(data.error);
+        } else {
+          setExamData(data);
+          // 如果有之前的答案，恢复它们
+          if (data.answers) {
+            setUserAnswers(data.answers);
+          }
+        }
+      } catch (err) {
+        console.error("加载考试数据失败:", err);
+        setError("加载考试数据失败");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadExamData();
+  }, [examId]);
+
+  // 倒计时计时器
+  useEffect(() => {
+    if (timeLeft <= 0 || !examData || examData.completed_at) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmitExam(); // 时间到自动提交
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeft, examData]);
+
+  const handleAnswerChange = (questionId: number, answer: string) => {
+    setUserAnswers((prev) => ({
+      ...prev,
+      [questionId]: answer,
+    }));
+  };
+
+  const handleNextQuestion = () => {
+    if (examData && currentQuestionIndex < examData.questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    }
+  };
+
+  const handlePrevQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
+  };
+
+  const handleSubmitExam = async () => {
+    if (!examData) return;
+
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/exam", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          examId: examData.id,
+          answers: userAnswers,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(
+          `考试提交成功！\n得分：${result.score.toFixed(1)}分\n正确：${
+            result.correctCount
+          }/${result.totalCount}`
+        );
+        router.push(`/exam-history?examId=${examData.id}`);
+      } else {
+        alert("提交失败：" + result.error);
+      }
+    } catch (err) {
+      console.error("提交考试失败:", err);
+      alert("提交考试失败");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">加载考试数据中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="mb-6">
+            <Link
+              href="/exam"
+              className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
+            >
+              ← 返回考试列表
+            </Link>
+          </div>
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              <p className="font-bold">错误</p>
+              <p>{error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!examData) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="mb-6">
+            <Link
+              href="/exam"
+              className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
+            >
+              ← 返回考试列表
+            </Link>
+          </div>
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <p>未找到考试数据</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const currentQuestion = examData.questions[currentQuestionIndex];
+  const totalQuestions = examData.questions.length;
+  const answeredCount = Object.keys(userAnswers).length;
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-4 md:py-8">
+      <div className="container mx-auto px-3 md:px-4 max-w-6xl">
+        <div className="mb-4 md:mb-6">
+          <Link
+            href="/exam"
+            className="text-blue-600 hover:text-blue-800 flex items-center gap-2 text-sm md:text-base"
+          >
+            ← 返回考试列表
+          </Link>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
+          {/* 考试头部信息 */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-3xl font-bold text-gray-800">
+                {examData.name}
+              </h1>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-red-600">
+                  {formatTime(timeLeft)}
+                </div>
+                <div className="text-sm text-gray-600">剩余时间</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-6">
+            {/* 题目导航 - 在md宽时放在左边 */}
+            <div className="md:col-span-4">
+              <div className="sticky top-8">
+                <h3 className="text-lg font-medium text-gray-800 mb-4">
+                  题目导航
+                </h3>
+                <div className="flex flex-wrap gap-1 md:gap-2  md:max-h-[680px] overflow-y-auto p-1 md:p-2">
+                  {examData.questions.map((q, index) => (
+                    <button
+                      key={q.id}
+                      onClick={() => setCurrentQuestionIndex(index)}
+                      className={`w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-sm md:text-base ${
+                        currentQuestionIndex === index
+                          ? "bg-blue-600 text-white"
+                          : userAnswers[q.id]
+                          ? "bg-green-400 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                      } hover:bg-blue-100 hover:text-blue-800 transition-colors`}
+                      title={`第 ${index + 1} 题`}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 md:mt-6 p-3 md:p-4 bg-gray-50 rounded-lg">
+                  <div className="text-sm text-gray-600 mb-2">答题状态</div>
+                  <div className="flex flex-row md:flex-col gap-4">
+                    <div className="flex items-center gap-2 justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-blue-600"></div>
+                        <span className="text-sm">当前题目</span>
+                      </div>
+                      <span className="text-sm font-medium text-blue-600">
+                        {currentQuestionIndex + 1}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-green-400"></div>
+                        <span className="text-sm">已答题</span>
+                      </div>
+                      <span className="text-sm font-medium text-green-600">
+                        {answeredCount}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-gray-100"></div>
+                        <span className="text-sm">未答题</span>
+                      </div>
+                      <span className="text-sm font-medium text-gray-600">
+                        {totalQuestions - answeredCount}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 当前题目 - 在md宽时放在右边 */}
+            <div className="md:col-span-8">
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-lg font-medium text-gray-700">
+                    第 {currentQuestionIndex + 1} 题 / 共 {totalQuestions} 题
+                  </span>
+                  <span
+                    className={`px-3 py-1 rounded text-sm font-medium ${
+                      currentQuestion.type === "single"
+                        ? "bg-blue-100 text-blue-800"
+                        : currentQuestion.type === "multiple"
+                        ? "bg-purple-100 text-purple-800"
+                        : "bg-green-400 text-green-800"
+                    }`}
+                  >
+                    {currentQuestion.type === "single"
+                      ? "单选题"
+                      : currentQuestion.type === "multiple"
+                      ? "多选题"
+                      : "判断题"}
+                  </span>
+                </div>
+
+                <div className="bg-gray-50 p-4 md:p-6 rounded-lg mb-4 md:mb-6">
+                  <p className="text-base md:text-lg text-gray-800 mb-4 md:mb-6">
+                    {currentQuestion.content}
+                  </p>
+
+                  {currentQuestion.type === "judge" ? (
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 md:gap-3 p-2 md:p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`question-${currentQuestion.id}`}
+                          value="true"
+                          checked={userAnswers[currentQuestion.id] === "true"}
+                          onChange={() =>
+                            handleAnswerChange(currentQuestion.id, "true")
+                          }
+                          className="h-5 w-5"
+                        />
+                        <span className="text-gray-800">正确</span>
+                      </label>
+                      <label className="flex items-center gap-2 md:gap-3 p-2 md:p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`question-${currentQuestion.id}`}
+                          value="false"
+                          checked={userAnswers[currentQuestion.id] === "false"}
+                          onChange={() =>
+                            handleAnswerChange(currentQuestion.id, "false")
+                          }
+                          className="h-5 w-5"
+                        />
+                        <span className="text-gray-800">错误</span>
+                      </label>
+                    </div>
+                  ) : currentQuestion.options ? (
+                    <div className="space-y-3">
+                      {currentQuestion.options.map((option, index) => (
+                        <label
+                          key={index}
+                          className="flex items-center gap-2 md:gap-3 p-2 md:p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type={
+                              currentQuestion.type === "single"
+                                ? "radio"
+                                : "checkbox"
+                            }
+                            name={`question-${currentQuestion.id}`}
+                            value={option}
+                            checked={
+                              currentQuestion.type === "single"
+                                ? userAnswers[currentQuestion.id] === option
+                                : userAnswers[currentQuestion.id]?.includes(
+                                    option
+                                  )
+                            }
+                            onChange={() => {
+                              if (currentQuestion.type === "single") {
+                                handleAnswerChange(currentQuestion.id, option);
+                              } else {
+                                // 多选题处理
+                                const currentAnswers = userAnswers[
+                                  currentQuestion.id
+                                ]
+                                  ? userAnswers[currentQuestion.id].split(",")
+                                  : [];
+                                const newAnswers = currentAnswers.includes(
+                                  option
+                                )
+                                  ? currentAnswers.filter((a) => a !== option)
+                                  : [...currentAnswers, option];
+                                handleAnswerChange(
+                                  currentQuestion.id,
+                                  newAnswers.join(",")
+                                );
+                              }
+                            }}
+                            className="h-5 w-5"
+                          />
+                          <span className="text-gray-800">{option}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* 操作按钮 */}
+              <div className="flex flex-col  justify-between gap-4">
+                <div className="flex justify-between  gap-2 md:gap-4">
+                  <button
+                    onClick={handlePrevQuestion}
+                    disabled={currentQuestionIndex === 0}
+                    className="px-4 py-2 md:px-6 md:py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm md:text-base"
+                  >
+                    上一题
+                  </button>
+                  <button
+                    onClick={handleNextQuestion}
+                    disabled={currentQuestionIndex === totalQuestions - 1}
+                    className="px-4 py-2 md:px-6 md:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-sm md:text-base"
+                  >
+                    下一题
+                  </button>
+                </div>
+
+                <div className="flex justify-center gap-2 md:gap-4">
+                  <button
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "确定要提交试卷吗？提交后将无法修改答案。"
+                        )
+                      ) {
+                        handleSubmitExam();
+                      }
+                    }}
+                    disabled={submitting}
+                    className="px-4 py-2 md:px-6 md:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-300 text-sm md:text-base"
+                  >
+                    {submitting ? "提交中..." : "提交试卷"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
