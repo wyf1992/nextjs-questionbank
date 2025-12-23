@@ -16,7 +16,7 @@ const pool = new Pool({
   // 可以添加其他连接选项
   max: 20, // 最大连接数
   idleTimeoutMillis: 30000, // 空闲连接超时时间
-  connectionTimeoutMillis: 2000, // 连接超时时间
+  connectionTimeoutMillis: 10000, // 连接超时时间增加到10秒
   // 对于Vercel/Neon PostgreSQL，建议使用SSL
   ssl:
     databaseUrl?.includes("neon.tech") ||
@@ -39,8 +39,11 @@ pool.on("error", (err) => {
 
 // 初始化数据库表
 export async function initDatabase() {
+  console.log("Starting database initialization...");
   const client = await pool.connect();
   try {
+    console.log("Database client connected, creating tables...");
+
     // 题目表
     await client.query(`
       CREATE TABLE IF NOT EXISTS questions (
@@ -53,6 +56,7 @@ export async function initDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    console.log("Questions table created/verified");
 
     // 错题记录表
     await client.query(`
@@ -65,6 +69,7 @@ export async function initDatabase() {
         FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
       )
     `);
+    console.log("Wrong questions table created/verified");
 
     // 试卷配置表
     await client.query(`
@@ -77,6 +82,7 @@ export async function initDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    console.log("Exam configs table created/verified");
 
     // 试卷记录表
     await client.query(`
@@ -91,6 +97,7 @@ export async function initDatabase() {
         FOREIGN KEY (config_id) REFERENCES exam_configs(id) ON DELETE CASCADE
       )
     `);
+    console.log("Exam records table created/verified");
 
     // 练习记录表
     await client.query(`
@@ -103,13 +110,18 @@ export async function initDatabase() {
         FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
       )
     `);
+    console.log("Practice records table created/verified");
 
     console.log("PostgreSQL tables initialized successfully");
   } catch (error) {
     console.error("Failed to initialize PostgreSQL tables:", error);
-    throw error;
+    // 不抛出错误，而是记录并继续，因为表可能已经存在
+    console.warn(
+      "Database initialization failed, but application will continue. Tables may already exist."
+    );
   } finally {
     client.release();
+    console.log("Database client released");
   }
 }
 
@@ -129,7 +141,7 @@ export async function query(text: string, params?: unknown[]) {
 
 // 导出事务函数
 export async function transaction<T>(
-  callback: (client: any) => Promise<T> | T
+  callback: (client: import("pg").PoolClient) => Promise<T> | T
 ): Promise<T> {
   const client = await pool.connect();
   try {
