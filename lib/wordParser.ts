@@ -95,12 +95,13 @@ function isQuestionStart(
   type: "single" | "multiple" | "judge"
 ): boolean {
   // 如果是选项行，不是新题目
-  if (/^[A-Z][.、．)]/.test(line)) {
+  // 支持更多分隔符：.、．、)（中文和英文括号）、特殊字符如、中文顿号、，还有空格（最多3个）
+  if (/^[A-Z][.、．)）、，]|^[A-Z] {1,3}(?![ ])/.test(line)) {
     return false;
   }
 
   // 如果是答案行，不是新题目
-  if (/答案[:：]/.test(line)) {
+  if (/答案[:：]/.test(line) || /【答案】/.test(line)) {
     return false;
   }
 
@@ -110,7 +111,10 @@ function isQuestionStart(
   }
 
   // 如果一行以"答案"结尾，不是新题目
-  if (/答案[:：]\s*[A-Z对错√×]$/i.test(line)) {
+  if (
+    /答案[:：]\s*[A-Z对错√×]$/i.test(line) ||
+    /【答案】\s*[A-Z对错√×]$/i.test(line)
+  ) {
     return false;
   }
 
@@ -196,8 +200,10 @@ function parseQuestion(
           ? bracketMatch[1]
           : bracketMatch[1].split("").sort().join("");
     } else {
-      // 尝试从答案前缀提取
-      const answerMatch = fullText.match(/答案[:：]\s*([A-Z]+)/);
+      // 尝试从答案前缀提取，支持多种格式：答案：E、答案:E、【答案】E、答案（B）*
+      const answerMatch = fullText.match(
+        /(?:答案[:：]|【答案】|答案)\s*[（(]?\s*([A-Z]+)\s*[）)]?\s*\**/
+      );
       if (answerMatch) {
         correctAnswer =
           type === "single"
@@ -212,7 +218,9 @@ function parseQuestion(
       const answerText = bracketMatch[1];
       correctAnswer = /对|√/i.test(answerText) ? "对" : "错";
     } else {
-      const answerMatch = fullText.match(/答案[:：]\s*([对错√×])/i);
+      const answerMatch = fullText.match(
+        /(?:答案[:：]|【答案】)\s*([对错√×])/i
+      );
       if (answerMatch) {
         const answerText = answerMatch[1];
         correctAnswer = /对|√/i.test(answerText) ? "对" : "错";
@@ -223,32 +231,83 @@ function parseQuestion(
   // 提取选项（选择题）
   if (type === "single" || type === "multiple") {
     // 改进的选项匹配：匹配A．选项内容（不包含答案文本）
+    // 支持更多分隔符：.、．、)（中文和英文括号）、特殊字符如、中文顿号、，还有空格（最多3个）
+    // 使用负向后顾确保不匹配答案中的字母，如（C）中的C
     // 先尝试匹配所有选项，然后清理每个选项
     const optionRegex =
-      /([A-Z])[.、．]\s*([^A-Z]+?)(?=\s+[A-Z][.、．]|答案[:：]|$)/g;
+      /(?<![（(])([A-Z])(?:[.、．)）、，]| {1,3}(?![ ]))([^A-Z]+?)(?=\s+[A-Z](?:[.、．)）、，]| {1,3}(?![ ]))|(?:答案[:：]|【答案】)|$)/g;
     let match;
     while ((match = optionRegex.exec(fullText)) !== null) {
       let optionText = match[2].trim();
 
       // 清理选项文本：去除可能包含的答案文本
-      optionText = optionText.replace(/\s*答案[:：]\s*[A-Z对错√×]+/g, "");
+      optionText = optionText.replace(
+        /\s*(?:答案[:：]|【答案】)\s*[A-Z对错√×]+/g,
+        ""
+      );
       optionText = optionText.replace(/\s*[（(]\s*[A-Z对错√×]+\s*[）)]/g, "");
 
-      if (optionText) {
+      // 过滤无效选项：不以标点符号开头
+      // 允许单个字符的选项（如"三"、"四"等）
+      // 允许以点号开头的数字选项（如".0.35"）
+      if (
+        (optionText && !/^[）)\.。，、,\.\s]/.test(optionText)) ||
+        /^\.\d/.test(optionText)
+      ) {
+        // 清理选项文本：去除开头的点号（如".0.35" -> "0.35"）
+        if (optionText.startsWith(".") && /^\.\d/.test(optionText)) {
+          optionText = optionText.substring(1);
+        }
         options.push(optionText.trim());
+      }
+    }
+
+    // 如果选项数量不足，尝试更宽松的匹配
+    if (options.length < 4 && type === "single") {
+      // 尝试匹配所有以字母开头，后跟分隔符和内容的模式
+      const fallbackRegex = /([A-Z])(?:[.、．)）、，]| {1,3})([^A-Z]+)/g;
+      let fallbackMatch;
+      const fallbackOptions = [];
+      while ((fallbackMatch = fallbackRegex.exec(fullText)) !== null) {
+        let optionText = fallbackMatch[2].trim();
+        // 清理选项文本
+        optionText = optionText.replace(
+          /\s*(?:答案[:：]|【答案】)\s*[A-Z对错√×]+/g,
+          ""
+        );
+        optionText = optionText.replace(/\s*[（(]\s*[A-Z对错√×]+\s*[）)]/g, "");
+        if (optionText && !/^[）)\.。，、,\.\s]/.test(optionText)) {
+          if (optionText.startsWith(".") && /^\.\d/.test(optionText)) {
+            optionText = optionText.substring(1);
+          }
+          fallbackOptions.push(optionText.trim());
+        }
+      }
+
+      // 如果后备方法找到更多选项，使用它们
+      if (fallbackOptions.length > options.length) {
+        options.length = 0;
+        fallbackOptions.forEach((opt) => options.push(opt));
       }
     }
 
     // 如果上面的方法没有找到选项，尝试另一种方法
     if (options.length === 0) {
-      const optionMatches = fullText.match(/([A-Z])[.、．]\s*([^A-Z.、．]+)/g);
+      const optionMatches = fullText.match(
+        /(?<![（(])([A-Z])(?:[.、．)）、，]| {1,3}(?![ ]))([^A-Z.、．)）、，]+)/g
+      );
       if (optionMatches) {
         optionMatches.forEach((opt) => {
-          const optMatch = opt.match(/([A-Z])[.、．]\s*(.+)/);
+          const optMatch = opt.match(
+            /(?<![（(])([A-Z])(?:[.、．)）、，]| {1,3}(?![ ]))(.+)/
+          );
           if (optMatch) {
             let optionText = optMatch[2].trim();
             // 清理选项文本
-            optionText = optionText.replace(/\s*答案[:：]\s*[A-Z对错√×]+/g, "");
+            optionText = optionText.replace(
+              /\s*(?:答案[:：]|【答案】)\s*[A-Z对错√×]+/g,
+              ""
+            );
             optionText = optionText.replace(
               /\s*[（(]\s*[A-Z对错√×]+\s*[）)]/g,
               ""
@@ -269,13 +328,16 @@ function parseQuestion(
   if (type === "single" || type === "multiple") {
     // 去除括号答案
     content = content.replace(/[（(]\s*[A-Z]+\s*[）)]/g, "( )");
-    // 去除答案前缀
-    content = content.replace(/答案[:：]\s*[A-Z]+/g, "");
+    // 去除答案前缀，支持多种格式：答案：E、答案:E、【答案】E、答案（B）*
+    content = content.replace(
+      /(?:答案[:：]|【答案】|答案)\s*[（(]?\s*[A-Z]+\s*[）)]?\s*\**/g,
+      ""
+    );
   } else if (type === "judge") {
     // 去除括号答案
     content = content.replace(/[（(]\s*[对错√×]\s*[）)]/g, "( )");
-    // 去除答案前缀
-    content = content.replace(/答案[:：]\s*[对错√×]/gi, "");
+    // 去除答案前缀，支持多种格式：答案：对、答案:对、【答案】对
+    content = content.replace(/(?:答案[:：]|【答案】)\s*[对错√×]/gi, "");
   }
 
   // 去除选项
@@ -283,8 +345,10 @@ function parseQuestion(
     options.forEach((opt, index) => {
       const optionLetter = String.fromCharCode(65 + index);
       const escapedOpt = opt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // 支持更多分隔符：.、．、)（中文和英文括号）、特殊字符如、中文顿号、，还有空格（最多3个）
+      // 分隔符后面可能有空格
       const optionPattern = new RegExp(
-        `${optionLetter}[.、．)]\\s*${escapedOpt}`,
+        `${optionLetter}(?:[.、．)）、，]\\s*| {1,3}(?![ ]))${escapedOpt}`,
         "g"
       );
       content = content.replace(optionPattern, "");
