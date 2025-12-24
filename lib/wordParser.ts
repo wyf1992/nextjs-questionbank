@@ -12,399 +12,193 @@ export interface ParsedQuestion {
 export async function parseWordDocument(
   buffer: Buffer
 ): Promise<ParsedQuestion[]> {
-  const result = await mammoth.extractRawText({ buffer });
-  const text = result.value;
+  const questions: ParsedQuestion[] = [];
+  const result = await mammoth.convertToHtml({ buffer });
+  const htmlText = result.value;
 
+  // 将HTML转换为纯文本，保留换行
+  const text = htmlToPlainText(htmlText);
+
+  console.log("转换后的纯文本内容预览:", text.slice(0, 1000));
   // 按行分割
   const lines = text
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
-  const questions: ParsedQuestion[] = [];
-  let currentType: "single" | "multiple" | "judge" | null = null;
-  let currentQuestion: {
-    type: "single" | "multiple" | "judge";
-    lines: string[];
-  } | null = null;
+  let i = 0;
+  const totalLines = lines.length;
+  let questionCount = 0;
 
-  for (let i = 0; i < lines.length; i++) {
+  // 简单状态机解析
+  let currentQuestion: ParsedQuestion | null = null;
+  let collectingOptions = false;
+
+  while (i < totalLines && questionCount < 10) {
     const line = lines[i];
 
-    // 检查是否是题型标题行
-    if (line.includes("单选题")) {
-      currentType = "single";
-      continue;
-    } else if (line.includes("多选题")) {
-      currentType = "multiple";
-      continue;
-    } else if (line.includes("判断题")) {
-      currentType = "judge";
+    // 检查是否是题目类型标记
+    if (line === "单选题" || line === "多选题" || line === "判断题") {
+      // 如果已经有题目在收集，先保存
+      if (currentQuestion) {
+        questions.push(currentQuestion);
+        questionCount++;
+        currentQuestion = null;
+      }
+
+      // 开始新题目
+      const type =
+        line === "单选题" ? "single" : line === "多选题" ? "multiple" : "judge";
+      currentQuestion = {
+        type,
+        content: "",
+        correctAnswer: "",
+        options: type === "judge" ? undefined : [],
+      };
+      collectingOptions = type !== "judge";
+      i++;
       continue;
     }
 
-    // 如果没有当前题型，尝试从内容推断
-    if (!currentType) {
-      if (line.includes("单选") || /答案[:：]\s*[A-Z]$/.test(line)) {
-        currentType = "single";
-      } else if (line.includes("多选") || /答案[:：]\s*[A-Z]{2,}/.test(line)) {
-        currentType = "multiple";
-      } else if (line.includes("判断") || /答案[:：]\s*[对错√×]/i.test(line)) {
-        currentType = "judge";
+    // 如果当前没有题目，跳过
+    if (!currentQuestion) {
+      i++;
+      continue;
+    }
+
+    // 检查是否是答案行
+    const answerMatch =
+      line.match(/答案[：:]?\s*([对错正确错误A-E]+)/) ||
+      line.match(/【答案】\s*([对错正确错误A-E]+)/) ||
+      line.match(/答案（\s*([对错正确错误A-E]+)\s*\)/);
+
+    if (answerMatch) {
+      if (currentQuestion) {
+        currentQuestion.correctAnswer = normalizeAnswer(
+          answerMatch[1],
+          currentQuestion.type
+        );
+        questions.push(currentQuestion);
+        questionCount++;
+        currentQuestion = null;
+        collectingOptions = false;
+      }
+      i++;
+      continue;
+    }
+
+    // 处理题目内容
+    if (currentQuestion.content === "") {
+      // 第一行非类型、非答案的内容是题目
+      currentQuestion.content = line;
+    } else if (collectingOptions && currentQuestion.options) {
+      // 收集选项
+      if (isOptionLine(line)) {
+        // 简单处理选项行
+        const optionMatch = line.match(/^([A-E])[、\.\s]\s*(.*)/);
+        if (optionMatch) {
+          const [, letter, text] = optionMatch;
+          currentQuestion.options.push(`${letter}、${text.trim()}`);
+        } else {
+          currentQuestion.options.push(line);
+        }
       }
     }
 
-    if (!currentType) continue;
-
-    // 检查是否是新的题目开始
-    const isNewQuestion = isQuestionStart(line, currentType);
-
-    if (isNewQuestion && currentQuestion) {
-      // 解析当前题目
-      const question = parseQuestion(
-        currentQuestion.lines,
-        currentQuestion.type
-      );
-      if (question) {
-        questions.push(question);
-      }
-      currentQuestion = { type: currentType, lines: [line] };
-    } else if (isNewQuestion && !currentQuestion) {
-      // 开始第一个题目
-      currentQuestion = { type: currentType, lines: [line] };
-    } else if (currentQuestion) {
-      // 继续当前题目
-      currentQuestion.lines.push(line);
-    }
+    i++;
   }
 
-  // 解析最后一个题目
-  if (currentQuestion) {
-    const question = parseQuestion(currentQuestion.lines, currentQuestion.type);
-    if (question) {
-      questions.push(question);
-    }
+  // 处理最后一个题目
+  if (currentQuestion && questionCount < 10) {
+    questions.push(currentQuestion);
   }
 
   return questions;
 }
 
-// 判断是否是题目开始
-function isQuestionStart(
-  line: string,
-  type: "single" | "multiple" | "judge"
-): boolean {
-  // 如果是选项行，不是新题目
-  // 支持更多分隔符：.、．、)（中文和英文括号）、特殊字符如、中文顿号、，还有空格（最多3个）
-  if (/^[A-Z][.、．)）、，]|^[A-Z] {1,3}(?![ ])/.test(line)) {
-    return false;
-  }
+// 将HTML转换为纯文本
+function htmlToPlainText(html: string): string {
+  // 首先移除章节标题相关的HTML元素
+  // 匹配包含章节标题的段落和标题标签
+  let processedHtml = html;
 
-  // 如果是答案行，不是新题目
-  // 支持多种格式：答案：对、答案（对）、【答案】对、答案：错误等
-  if (
-    /答案[:：]/.test(line) ||
-    /【答案】/.test(line) ||
-    /^答案[（(]/.test(line)
-  ) {
-    return false;
-  }
+  // 移除包含章节标题的<h1>-<h6>标签
+  processedHtml = processedHtml.replace(/<h[1-6][^>]*>[^<]*<\/h[1-6]>/g, "");
 
-  // 如果一行只包含括号答案，不是新题目
-  if (/^[（(]\s*[A-Z对错√×]+\s*[）)]$/.test(line)) {
-    return false;
-  }
+  // 移除包含章节标题的<p>标签
+  processedHtml = processedHtml.replace(
+    /<p[^>]*>\s*第\s*(?:[一二三四五六七八九十]+|\d+)\s*[章节][^<]{0,20}<\/p>/g,
+    ""
+  );
 
-  // 如果一行以"答案"开头，不是新题目
-  if (/^答案/.test(line)) {
-    return false;
-  }
+  // 移除包含特定标题的标签
+  const titlesToRemove: string[] = [];
 
-  // 如果一行以"答案"结尾，不是新题目
-  if (
-    /答案[:：]\s*[A-Z对错√×]$/i.test(line) ||
-    /【答案】\s*[A-Z对错√×]$/i.test(line)
-  ) {
-    return false;
-  }
+  titlesToRemove.forEach((title) => {
+    const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    processedHtml = processedHtml.replace(
+      new RegExp(`<[^>]*>${escapedTitle}<\\/[^>]*>`, "g"),
+      ""
+    );
+  });
 
-  // 对于判断题，如果包含括号答案，可能是题目
-  // 但排除以"答案"开头的行
-  if (
-    type === "judge" &&
-    /[（(]\s*[对错√×]\s*[）)]/.test(line) &&
-    !/^答案/.test(line)
-  ) {
-    return true;
-  }
+  // 处理列表项，添加换行
+  let text = processedHtml.replace(/<ol>/g, "");
+  text = text.replace(/<\/ol>/g, "\n");
+  text = text.replace(/<li>/g, "");
+  text = text.replace(/<\/li>/g, "\n");
 
-  // 对于选择题，如果包含括号答案，可能是题目
-  if (
-    (type === "single" || type === "multiple") &&
-    /[（(]\s*[A-Z]+\s*[）)]/.test(line)
-  ) {
-    return true;
-  }
+  // 处理段落和标题
+  text = text.replace(/<\/p>/g, "\n");
+  text = text.replace(/<\/h[1-6]>/g, "\n");
 
-  // 检查是否是常见的问题开头模式
-  const isQuestionPattern =
-    line.endsWith("是") ||
-    line.endsWith("?") ||
-    line.endsWith("？") ||
-    line.endsWith(":") ||
-    line.endsWith("：") ||
-    line.includes("下列") ||
-    line.includes("哪些") ||
-    line.includes("什么") ||
-    line.includes("如何") ||
-    line.includes("为什么") ||
-    line.includes("可引起") ||
-    line.includes("可导致") ||
-    line.includes("可接触") ||
-    line.includes("属于") ||
-    line.includes("包括") ||
-    line.includes("主要损害") ||
-    line.includes("主要影响") ||
-    line.includes("主要作用") ||
-    line.includes("主要表现") ||
-    line.includes("主要特征");
+  // 移除所有HTML标签
+  text = text.replace(/<[^>]*>/g, "");
 
-  // 其他情况：不是选项、不是答案，长度合适，且符合问题模式
-  // 对于包含特定关键词的题目，即使长度较短也识别为新题目
-  const hasQuestionKeywords =
-    line.includes("可引起") ||
-    line.includes("可导致") ||
-    line.includes("可接触") ||
-    line.includes("属于") ||
-    line.includes("包括") ||
-    line.includes("下列") ||
-    line.includes("哪些") ||
-    line.includes("什么") ||
-    line.includes("如何") ||
-    line.includes("为什么");
+  // 转换HTML实体
+  text = text.replace(/&nbsp;/g, " ");
+  text = text.replace(/</g, "<");
+  text = text.replace(/>/g, ">");
+  text = text.replace(/&/g, "&");
+  text = text.replace(/"/g, '"');
+  text = text.replace(/&#39;/g, "'");
 
+  // 合并多个空格，但保留换行
+  text = text.replace(/[ \t]+/g, " ");
+
+  // 合并多个换行
+  text = text.replace(/\n\s*\n\s*\n/g, "\n\n");
+
+  return text.trim();
+}
+
+// 检查是否是选项行
+function isOptionLine(line: string): boolean {
   return (
-    !line.includes("单选题") &&
-    !line.includes("多选题") &&
-    !line.includes("判断题") &&
-    ((line.length >= 5 && isQuestionPattern) ||
-      line.length > 10 ||
-      (line.length >= 5 && hasQuestionKeywords))
+    /^[A-E][、\s].*/.test(line) ||
+    /^[A-E]\./.test(line) ||
+    /^[A-E]\s+/.test(line)
   );
 }
 
-// 解析题目
-function parseQuestion(
-  lines: string[],
+// 规范化答案
+function normalizeAnswer(
+  answer: string,
   type: "single" | "multiple" | "judge"
-): ParsedQuestion | null {
-  const fullText = lines.join(" ").trim();
-  if (!fullText) return null;
-
-  let content = "";
-  const options: string[] = [];
-  let correctAnswer = "";
-
-  // 提取答案
-  if (type === "single" || type === "multiple") {
-    // 尝试从括号中提取答案：如（C）或（ABCD）
-    const bracketMatch = fullText.match(/[（(]\s*([A-Z]+)\s*[）)]/);
-    if (bracketMatch) {
-      correctAnswer =
-        type === "single"
-          ? bracketMatch[1]
-          : bracketMatch[1].split("").sort().join("");
-    } else {
-      // 尝试从答案前缀提取，支持多种格式：答案：E、答案:E、【答案】E、答案（B）*
-      const answerMatch = fullText.match(
-        /(?:答案[:：]|【答案】|答案)\s*[（(]?\s*([A-Z]+)\s*[）)]?\s*\**/
-      );
-      if (answerMatch) {
-        correctAnswer =
-          type === "single"
-            ? answerMatch[1]
-            : answerMatch[1].split("").sort().join("");
-      }
+): string {
+  if (type === "judge") {
+    if (answer.includes("对") || answer.includes("正确") || answer === "√") {
+      return "对";
+    } else if (
+      answer.includes("错") ||
+      answer.includes("错误") ||
+      answer === "×"
+    ) {
+      return "错";
     }
-  } else if (type === "judge") {
-    // 判断题答案
-    const bracketMatch = fullText.match(/[（(]\s*([对错√×])\s*[）)]/);
-    if (bracketMatch) {
-      const answerText = bracketMatch[1];
-      correctAnswer = /对|√/i.test(answerText) ? "对" : "错";
-    } else {
-      const answerMatch = fullText.match(
-        /(?:答案[:：]|【答案】)\s*([对错√×])/i
-      );
-      if (answerMatch) {
-        const answerText = answerMatch[1];
-        correctAnswer = /对|√/i.test(answerText) ? "对" : "错";
-      }
-    }
+    return answer;
   }
 
-  // 提取选项（选择题）
-  if (type === "single" || type === "multiple") {
-    // 改进的选项匹配：匹配A．选项内容（不包含答案文本）
-    // 支持更多分隔符：.、．、)（中文和英文括号）、特殊字符如、中文顿号、，还有空格（最多3个）
-    // 使用负向后顾确保不匹配答案中的字母，如（C）中的C
-    // 先尝试匹配所有选项，然后清理每个选项
-    const optionRegex =
-      /(?<![（(])([A-Z])(?:[.、．)）、，]| {1,3}(?![ ]))([^A-Z]+?)(?=\s+[A-Z](?:[.、．)）、，]| {1,3}(?![ ]))|(?:答案[:：]|【答案】)|$)/g;
-    let match;
-    while ((match = optionRegex.exec(fullText)) !== null) {
-      let optionText = match[2].trim();
-
-      // 清理选项文本：去除可能包含的答案文本
-      optionText = optionText.replace(
-        /\s*(?:答案[:：]|【答案】)\s*[A-Z对错√×]+/g,
-        ""
-      );
-      optionText = optionText.replace(/\s*[（(]\s*[A-Z对错√×]+\s*[）)]/g, "");
-
-      // 过滤无效选项：不以标点符号开头
-      // 允许单个字符的选项（如"三"、"四"等）
-      // 允许以点号开头的数字选项（如".0.35"）
-      if (
-        (optionText && !/^[）)\.。，、,\.\s]/.test(optionText)) ||
-        /^\.\d/.test(optionText)
-      ) {
-        // 清理选项文本：去除开头的点号（如".0.35" -> "0.35"）
-        if (optionText.startsWith(".") && /^\.\d/.test(optionText)) {
-          optionText = optionText.substring(1);
-        }
-        options.push(optionText.trim());
-      }
-    }
-
-    // 如果选项数量不足，尝试更宽松的匹配
-    if (options.length < 4 && type === "single") {
-      // 尝试匹配所有以字母开头，后跟分隔符和内容的模式
-      const fallbackRegex = /([A-Z])(?:[.、．)）、，]| {1,3})([^A-Z]+)/g;
-      let fallbackMatch;
-      const fallbackOptions = [];
-      while ((fallbackMatch = fallbackRegex.exec(fullText)) !== null) {
-        let optionText = fallbackMatch[2].trim();
-        // 清理选项文本
-        optionText = optionText.replace(
-          /\s*(?:答案[:：]|【答案】)\s*[A-Z对错√×]+/g,
-          ""
-        );
-        optionText = optionText.replace(/\s*[（(]\s*[A-Z对错√×]+\s*[）)]/g, "");
-        if (optionText && !/^[）)\.。，、,\.\s]/.test(optionText)) {
-          if (optionText.startsWith(".") && /^\.\d/.test(optionText)) {
-            optionText = optionText.substring(1);
-          }
-          fallbackOptions.push(optionText.trim());
-        }
-      }
-
-      // 如果后备方法找到更多选项，使用它们
-      if (fallbackOptions.length > options.length) {
-        options.length = 0;
-        fallbackOptions.forEach((opt) => options.push(opt));
-      }
-    }
-
-    // 如果上面的方法没有找到选项，尝试另一种方法
-    if (options.length === 0) {
-      const optionMatches = fullText.match(
-        /(?<![（(])([A-Z])(?:[.、．)）、，]| {1,3}(?![ ]))([^A-Z.、．)）、，]+)/g
-      );
-      if (optionMatches) {
-        optionMatches.forEach((opt) => {
-          const optMatch = opt.match(
-            /(?<![（(])([A-Z])(?:[.、．)）、，]| {1,3}(?![ ]))(.+)/
-          );
-          if (optMatch) {
-            let optionText = optMatch[2].trim();
-            // 清理选项文本
-            optionText = optionText.replace(
-              /\s*(?:答案[:：]|【答案】)\s*[A-Z对错√×]+/g,
-              ""
-            );
-            optionText = optionText.replace(
-              /\s*[（(]\s*[A-Z对错√×]+\s*[）)]/g,
-              ""
-            );
-            if (optionText) {
-              options.push(optionText);
-            }
-          }
-        });
-      }
-    }
-  }
-
-  // 提取题目内容
-  content = fullText;
-
-  // 去除答案部分
-  if (type === "single" || type === "multiple") {
-    // 去除括号答案
-    content = content.replace(/[（(]\s*[A-Z]+\s*[）)]/g, "( )");
-    // 去除答案前缀，支持多种格式：答案：E、答案:E、【答案】E、答案（B）*
-    content = content.replace(
-      /(?:答案[:：]|【答案】|答案)\s*[（(]?\s*[A-Z]+\s*[）)]?\s*\**/g,
-      ""
-    );
-  } else if (type === "judge") {
-    // 去除括号答案
-    content = content.replace(/[（(]\s*[对错√×]\s*[）)]/g, "( )");
-    // 去除答案前缀，支持多种格式：答案：对、答案:对、【答案】对、答案：错误、答案：正确、答案（对）、答案( )
-    // 注意：先匹配"错误"或"正确"（两个字），再匹配单个字符
-    // 同时匹配"答案( )"或"答案（ ）"这种格式（括号答案已被替换为( )）
-    content = content.replace(
-      /(?:答案[:：]|【答案】)\s*(?:错误|正确|[对错√×]|\([ ]*\)|（[ ]*）)/gi,
-      ""
-    );
-    // 再次去除可能残留的"答案( )"或"答案（ ）"
-    content = content.replace(/答案\s*[（(]\s*[）)]/g, "");
-  }
-
-  // 去除选项
-  if (options.length > 0) {
-    options.forEach((opt, index) => {
-      const optionLetter = String.fromCharCode(65 + index);
-      const escapedOpt = opt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      // 支持更多分隔符：.、．、)（中文和英文括号）、特殊字符如、中文顿号、，还有空格（最多3个）
-      // 分隔符后面可能有空格
-      const optionPattern = new RegExp(
-        `${optionLetter}(?:[.、．)）、，]\\s*| {1,3}(?![ ]))${escapedOpt}`,
-        "g"
-      );
-      content = content.replace(optionPattern, "");
-    });
-  }
-
-  // 清理内容
-  content = content
-    .replace(/^\d+[.、．)]\s*/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  // 如果内容为空，使用原始文本（去除答案和选项）
-  if (!content) {
-    content = fullText;
-    if (type === "single" || type === "multiple") {
-      content = content.replace(/[（(]\s*[A-Z]+\s*[）)]/g, "");
-      content = content.replace(/答案[:：]\s*[A-Z]+/g, "");
-    } else if (type === "judge") {
-      content = content.replace(/[（(]\s*[对错√×]\s*[）)]/g, "");
-      content = content.replace(/答案[:：]\s*[对错√×]/gi, "");
-    }
-    content = content.trim();
-  }
-
-  // 验证
-  if (!content) return null;
-  if ((type === "single" || type === "multiple") && options.length === 0)
-    return null;
-
-  return {
-    type,
-    content,
-    options: type === "judge" ? undefined : options,
-    correctAnswer: correctAnswer || (type === "judge" ? "对" : "A"),
-  };
+  // 选择题答案：移除空格和特殊字符
+  return answer.replace(/\s+/g, "").toUpperCase();
 }
