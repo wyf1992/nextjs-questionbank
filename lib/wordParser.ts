@@ -101,12 +101,22 @@ function isQuestionStart(
   }
 
   // 如果是答案行，不是新题目
-  if (/答案[:：]/.test(line) || /【答案】/.test(line)) {
+  // 支持多种格式：答案：对、答案（对）、【答案】对、答案：错误等
+  if (
+    /答案[:：]/.test(line) ||
+    /【答案】/.test(line) ||
+    /^答案[（(]/.test(line)
+  ) {
     return false;
   }
 
   // 如果一行只包含括号答案，不是新题目
   if (/^[（(]\s*[A-Z对错√×]+\s*[）)]$/.test(line)) {
+    return false;
+  }
+
+  // 如果一行以"答案"开头，不是新题目
+  if (/^答案/.test(line)) {
     return false;
   }
 
@@ -119,7 +129,12 @@ function isQuestionStart(
   }
 
   // 对于判断题，如果包含括号答案，可能是题目
-  if (type === "judge" && /[（(]\s*[对错√×]\s*[）)]/.test(line)) {
+  // 但排除以"答案"开头的行
+  if (
+    type === "judge" &&
+    /[（(]\s*[对错√×]\s*[）)]/.test(line) &&
+    !/^答案/.test(line)
+  ) {
     return true;
   }
 
@@ -336,8 +351,15 @@ function parseQuestion(
   } else if (type === "judge") {
     // 去除括号答案
     content = content.replace(/[（(]\s*[对错√×]\s*[）)]/g, "( )");
-    // 去除答案前缀，支持多种格式：答案：对、答案:对、【答案】对
-    content = content.replace(/(?:答案[:：]|【答案】)\s*[对错√×]/gi, "");
+    // 去除答案前缀，支持多种格式：答案：对、答案:对、【答案】对、答案：错误、答案：正确、答案（对）、答案( )
+    // 注意：先匹配"错误"或"正确"（两个字），再匹配单个字符
+    // 同时匹配"答案( )"或"答案（ ）"这种格式（括号答案已被替换为( )）
+    content = content.replace(
+      /(?:答案[:：]|【答案】)\s*(?:错误|正确|[对错√×]|\([ ]*\)|（[ ]*）)/gi,
+      ""
+    );
+    // 再次去除可能残留的"答案( )"或"答案（ ）"
+    content = content.replace(/答案\s*[（(]\s*[）)]/g, "");
   }
 
   // 去除选项
