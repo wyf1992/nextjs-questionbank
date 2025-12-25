@@ -3,8 +3,8 @@ import { parseWordDocument } from "./lib/wordParser";
 
 async function test() {
   try {
-    // 读取test.docx文件
-    const buffer = fs.readFileSync("./test.docx");
+    // 读取test.docx文件   职业卫生技术服务机构应当在有效期届满三个月前向原资质认可机关提出延续申请
+    const buffer = fs.readFileSync("./allquestions.docx");
 
     // 解析文档
     const questions = await parseWordDocument(buffer);

@@ -5,40 +5,27 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Program",
-      "program": "${workspaceFolder}/app.js",
-      "request": "launch",
-      "skipFiles": ["<node_internals>/**"],
-      "type": "node"
-    },
-    {
-      "type": "node-terminal",
-      "name": "JavaScript 调试终端",
-      "request": "launch",
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "name": "Debug test_parse.ts with tsx",
       "type": "node",
       "request": "launch",
+      "name": "启动程序",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/lib/wordParser.ts",
+      "outFiles": ["${workspaceFolder}/**/*.js"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "调试 test_parse.ts",
+      "skipFiles": ["<node_internals>/**"],
       "runtimeExecutable": "npx",
       "runtimeArgs": ["tsx"],
       "args": ["test_parse.ts"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "skipFiles": ["<node_internals>/**"]
-    },
-    {
-      "name": "Debug test_parse.ts (simple)",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/test_parse.ts",
-      "runtimeArgs": ["-r", "tsx/register"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
-      "skipFiles": ["<node_internals>/**"]
+      "env": {
+        "NODE_ENV": "development"
+      }
     }
   ]
 }
