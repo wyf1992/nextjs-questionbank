@@ -39,6 +39,21 @@ export default function ExamTakingPage() {
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(120 * 60); // 120分钟，单位：秒
+  const [showResults, setShowResults] = useState(false);
+  const [examResults, setExamResults] = useState<{
+    score: number;
+    correctCount: number;
+    totalCount: number;
+    questionResults: Array<{
+      id: number;
+      userAnswer: string;
+      correctAnswer: string;
+      isCorrect: boolean;
+      content: string;
+      type: string;
+      explanation: string | null;
+    }>;
+  } | null>(null);
 
   // 加载考试数据
   useEffect(() => {
@@ -54,6 +69,35 @@ export default function ExamTakingPage() {
           // 如果有之前的答案，恢复它们
           if (data.answers) {
             setUserAnswers(data.answers);
+          }
+
+          // 如果考试已经完成，显示结果
+          if (data.completed_at && data.score !== null) {
+            const questionResults = data.questions.map((question: Question) => {
+              const userAnswer = data.answers?.[question.id] || "未作答";
+              const isCorrect = userAnswer === question.correct_answer;
+
+              return {
+                id: question.id,
+                userAnswer,
+                correctAnswer: question.correct_answer,
+                isCorrect,
+                content: question.content,
+                type: question.type,
+                explanation: question.explanation,
+              };
+            });
+
+            setExamResults({
+              score: data.score,
+              correctCount: questionResults.filter(
+                (r: { isCorrect: boolean }) => r.isCorrect
+              ).length,
+              totalCount: data.questions.length,
+              questionResults,
+            });
+
+            setShowResults(true);
           }
         }
       } catch (err) {
@@ -92,6 +136,75 @@ export default function ExamTakingPage() {
     }));
   };
 
+  // 将选项内容转换为字母（A, B, C, D, E）
+  const getOptionLetter = (
+    question: Question,
+    optionContent: string
+  ): string => {
+    if (!question.options) return optionContent;
+
+    const index = question.options.indexOf(optionContent);
+    if (index === -1) return optionContent;
+
+    // 0 -> A, 1 -> B, 2 -> C, 3 -> D, 4 -> E
+    return String.fromCharCode(65 + index); // 65 is 'A' in ASCII
+  };
+
+  // 将字母转换为选项内容
+  const getOptionContent = (question: Question, letter: string): string => {
+    if (!question.options) return letter;
+
+    const index = letter.charCodeAt(0) - 65; // 'A' -> 0, 'B' -> 1, etc.
+    if (index >= 0 && index < question.options.length) {
+      return question.options[index];
+    }
+    return letter;
+  };
+
+  // 处理选择题答案选择
+  const handleChoiceAnswer = (question: Question, optionContent: string) => {
+    const letter = getOptionLetter(question, optionContent);
+
+    if (question.type === "single") {
+      // 单选题：直接存储字母
+      handleAnswerChange(question.id, letter);
+    } else if (question.type === "multiple") {
+      // 多选题：存储逗号分隔的字母
+      const currentAnswer = userAnswers[question.id] || "";
+      const currentLetters = currentAnswer ? currentAnswer.split(",") : [];
+
+      if (currentLetters.includes(letter)) {
+        // 如果已经选中，则取消选择
+        const newLetters = currentLetters.filter((l) => l !== letter);
+        handleAnswerChange(question.id, newLetters.join(","));
+      } else {
+        // 如果未选中，则添加
+        const newLetters = [...currentLetters, letter].sort();
+        handleAnswerChange(question.id, newLetters.join(","));
+      }
+    }
+  };
+
+  // 检查选项是否被选中
+  const isOptionSelected = (
+    question: Question,
+    optionContent: string
+  ): boolean => {
+    const letter = getOptionLetter(question, optionContent);
+    const currentAnswer = userAnswers[question.id];
+
+    if (!currentAnswer) return false;
+
+    if (question.type === "single") {
+      return currentAnswer === letter;
+    } else if (question.type === "multiple") {
+      const letters = currentAnswer.split(",");
+      return letters.includes(letter);
+    }
+
+    return false;
+  };
+
   const handleNextQuestion = () => {
     if (examData && currentQuestionIndex < examData.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
@@ -102,6 +215,29 @@ export default function ExamTakingPage() {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
+  };
+
+  // 比较答案是否相等（处理多选题逗号分隔问题）
+  const compareAnswers = (
+    userAnswer: string,
+    correctAnswer: string,
+    type: string
+  ): boolean => {
+    if (!userAnswer || userAnswer === "未作答") return false;
+
+    if (type === "multiple") {
+      // 多选题：移除逗号并排序后比较
+      const userLetters = userAnswer
+        .replace(/,/g, "")
+        .split("")
+        .sort()
+        .join("");
+      const correctLetters = correctAnswer.split("").sort().join("");
+      return userLetters === correctLetters;
+    }
+
+    // 单选题和判断题：直接比较
+    return userAnswer === correctAnswer;
   };
 
   const handleSubmitExam = async () => {
@@ -117,12 +253,8 @@ export default function ExamTakingPage() {
       const result = await response.json();
 
       if (result.success) {
-        alert(
-          `考试提交成功！\n得分：${result.score.toFixed(1)}分\n正确：${
-            result.correctCount
-          }/${result.totalCount}`
-        );
-        router.push(`/exam-history?examId=${examData.id}`);
+        // 重定向到独立的结果页面
+        router.push(`/exam/results/${examData.id}`);
       } else {
         alert("提交失败：" + result.error);
       }
@@ -141,6 +273,16 @@ export default function ExamTakingPage() {
     return `${hours.toString().padStart(2, "0")}:${minutes
       .toString()
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleCloseResults = () => {
+    setShowResults(false);
+    router.push(`/exam-history?examId=${examData?.id}`);
+  };
+
+  const handleReviewQuestions = () => {
+    setShowResults(false);
+    setCurrentQuestionIndex(0);
   };
 
   if (loading) {
@@ -201,6 +343,19 @@ export default function ExamTakingPage() {
   const totalQuestions = examData.questions.length;
   const answeredCount = Object.keys(userAnswers).length;
 
+  // 获取分数颜色
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return "text-green-600";
+    if (score >= 60) return "text-yellow-600";
+    return "text-red-600";
+  };
+
+  const getScoreBgColor = (score: number) => {
+    if (score >= 90) return "bg-green-100";
+    if (score >= 60) return "bg-yellow-100";
+    return "bg-red-100";
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-4 md:py-8">
       <div className="container mx-auto px-3 md:px-4 max-w-6xl">
@@ -212,6 +367,182 @@ export default function ExamTakingPage() {
             ← 返回考试列表
           </Link>
         </div>
+
+        {/* 考试结果模态框 */}
+        {showResults && examResults && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">考试结果</h2>
+                  <button
+                    onClick={handleCloseResults}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* 成绩概览 */}
+                <div className="mb-8">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div className="bg-blue-50 p-6 rounded-lg text-center">
+                      <div className="text-sm text-gray-600 mb-2">总分</div>
+                      <div
+                        className={`text-4xl font-bold ${getScoreColor(
+                          examResults.score
+                        )}`}
+                      >
+                        {examResults.score.toFixed(1)}分
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">
+                        {examResults.score >= 90
+                          ? "优秀"
+                          : examResults.score >= 60
+                          ? "及格"
+                          : "不及格"}
+                      </div>
+                    </div>
+                    <div className="bg-green-50 p-6 rounded-lg text-center">
+                      <div className="text-sm text-gray-600 mb-2">正确题数</div>
+                      <div className="text-4xl font-bold text-green-600">
+                        {examResults.correctCount}/{examResults.totalCount}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">
+                        正确率：
+                        {(
+                          (examResults.correctCount / examResults.totalCount) *
+                          100
+                        ).toFixed(1)}
+                        %
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 p-6 rounded-lg text-center">
+                      <div className="text-sm text-gray-600 mb-2">答题时间</div>
+                      <div className="text-4xl font-bold text-purple-600">
+                        {formatTime(120 * 60 - timeLeft)}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">
+                        剩余时间：{formatTime(timeLeft)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 题目结果列表 */}
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">
+                    题目详情
+                  </h3>
+                  <div className="space-y-4">
+                    {examResults.questionResults.map((result, index) => (
+                      <div
+                        key={result.id}
+                        className={`border rounded-lg p-4 ${
+                          result.isCorrect
+                            ? "border-green-200 bg-green-50"
+                            : "border-red-200 bg-red-50"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-800">
+                              第 {index + 1} 题
+                            </span>
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-medium ${
+                                result.type === "single"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : result.type === "multiple"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-green-100 text-green-800"
+                              }`}
+                            >
+                              {result.type === "single"
+                                ? "单选题"
+                                : result.type === "multiple"
+                                ? "多选题"
+                                : "判断题"}
+                            </span>
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-medium ${
+                                result.isCorrect
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {result.isCorrect ? "正确" : "错误"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-gray-800 mb-3">{result.content}</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <div className="text-gray-600 mb-1">你的答案：</div>
+                            <div
+                              className={`font-medium ${
+                                result.isCorrect
+                                  ? "text-green-700"
+                                  : "text-red-700"
+                              }`}
+                            >
+                              {result.userAnswer.replace(/,/g, "")}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600 mb-1">正确答案：</div>
+                            <div className="font-medium text-green-700">
+                              {result.correctAnswer}
+                            </div>
+                          </div>
+                        </div>
+
+                        {result.explanation && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="text-gray-600 mb-1">解析：</div>
+                            <div className="text-gray-800">
+                              {result.explanation}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 操作按钮 */}
+                <div className="flex justify-end gap-4">
+                  <button
+                    onClick={handleReviewQuestions}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    查看题目
+                  </button>
+                  <button
+                    onClick={handleCloseResults}
+                    className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                  >
+                    查看考试记录
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
           {/* 考试头部信息 */}
@@ -325,27 +656,27 @@ export default function ExamTakingPage() {
                         <input
                           type="radio"
                           name={`question-${currentQuestion.id}`}
-                          value="true"
-                          checked={userAnswers[currentQuestion.id] === "true"}
+                          value="对"
+                          checked={userAnswers[currentQuestion.id] === "对"}
                           onChange={() =>
-                            handleAnswerChange(currentQuestion.id, "true")
+                            handleAnswerChange(currentQuestion.id, "对")
                           }
                           className="h-5 w-5"
                         />
-                        <span className="text-gray-800">正确</span>
+                        <span className="text-gray-800">对</span>
                       </label>
                       <label className="flex items-center gap-2 md:gap-3 p-2 md:p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
                         <input
                           type="radio"
                           name={`question-${currentQuestion.id}`}
-                          value="false"
-                          checked={userAnswers[currentQuestion.id] === "false"}
+                          value="错"
+                          checked={userAnswers[currentQuestion.id] === "错"}
                           onChange={() =>
-                            handleAnswerChange(currentQuestion.id, "false")
+                            handleAnswerChange(currentQuestion.id, "错")
                           }
                           className="h-5 w-5"
                         />
-                        <span className="text-gray-800">错误</span>
+                        <span className="text-gray-800">错</span>
                       </label>
                     </div>
                   ) : currentQuestion.options ? (
@@ -363,37 +694,15 @@ export default function ExamTakingPage() {
                             }
                             name={`question-${currentQuestion.id}`}
                             value={option}
-                            checked={
-                              currentQuestion.type === "single"
-                                ? userAnswers[currentQuestion.id] === option
-                                : userAnswers[currentQuestion.id]?.includes(
-                                    option
-                                  )
-                            }
+                            checked={isOptionSelected(currentQuestion, option)}
                             onChange={() => {
-                              if (currentQuestion.type === "single") {
-                                handleAnswerChange(currentQuestion.id, option);
-                              } else {
-                                // 多选题处理
-                                const currentAnswers = userAnswers[
-                                  currentQuestion.id
-                                ]
-                                  ? userAnswers[currentQuestion.id].split(",")
-                                  : [];
-                                const newAnswers = currentAnswers.includes(
-                                  option
-                                )
-                                  ? currentAnswers.filter((a) => a !== option)
-                                  : [...currentAnswers, option];
-                                handleAnswerChange(
-                                  currentQuestion.id,
-                                  newAnswers.join(",")
-                                );
-                              }
+                              handleChoiceAnswer(currentQuestion, option);
                             }}
                             className="h-5 w-5"
                           />
-                          <span className="text-gray-800">{option}</span>
+                          <span className="text-gray-800">
+                            {String.fromCharCode(65 + index)}. {option}
+                          </span>
                         </label>
                       ))}
                     </div>

@@ -335,12 +335,19 @@ function ExamHistoryContent() {
 
                     <div className="pt-4 border-t border-gray-200">
                       <div className="flex gap-3">
-                        {!selectedExam.completed_at && (
+                        {!selectedExam.completed_at ? (
                           <Link
                             href={`/exam/taking/${selectedExam.id}`}
                             className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-center"
                           >
                             继续考试
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/exam/results/${selectedExam.id}`}
+                            className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-center"
+                          >
+                            查看详细结果
                           </Link>
                         )}
                         <button

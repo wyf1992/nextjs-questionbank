@@ -29,9 +29,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "试卷名称不能为空" }, { status: 400 });
     }
 
-    const single = singleCount || 60;
-    const multiple = multipleCount || 30;
-    const judge = judgeCount || 10;
+    const single = singleCount || 0;
+    const multiple = multipleCount || 0;
+    const judge = judgeCount || 0;
+
+    if (single <= 0 && multiple <= 0 && judge <= 0) {
+      return NextResponse.json(
+        { error: "至少需要选择一种题型" },
+        { status: 400 }
+      );
+    }
 
     // 获取各类型题目
     const singleStmt = db.prepare(
