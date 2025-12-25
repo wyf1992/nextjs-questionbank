@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { authGet } from "@/lib/api";
 
 interface ExamRecord {
   id: number;
@@ -41,7 +42,7 @@ interface ExamDetail {
   judge_count: number;
 }
 
-export default function ExamHistoryPage() {
+function ExamHistoryContent() {
   const searchParams = useSearchParams();
   const examId = searchParams.get("examId");
 
@@ -55,7 +56,7 @@ export default function ExamHistoryPage() {
   useEffect(() => {
     const loadExams = async () => {
       try {
-        const response = await fetch("/api/exam");
+        const response = await authGet("/api/exam");
         const data = await response.json();
 
         if (data.error) {
@@ -84,7 +85,7 @@ export default function ExamHistoryPage() {
   const loadExamDetail = async (id: string) => {
     setDetailLoading(true);
     try {
-      const response = await fetch(`/api/exam?examId=${id}`);
+      const response = await authGet(`/api/exam?examId=${id}`);
       const data = await response.json();
 
       if (data.error) {
@@ -362,5 +363,22 @@ export default function ExamHistoryPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ExamHistoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">加载中...</p>
+          </div>
+        </div>
+      }
+    >
+      <ExamHistoryContent />
+    </Suspense>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { authPost } from "@/lib/api";
 
 interface Question {
   id: number;
@@ -68,16 +69,10 @@ export default function PracticePage() {
 
     // 提交答案到后端
     try {
-      await fetch("/api/practice", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          questionId: currentQuestion.id,
-          userAnswer: answer,
-          isCorrect: correct,
-        }),
+      await authPost("/api/practice", {
+        questionId: currentQuestion.id,
+        userAnswer: answer,
+        isCorrect: correct,
       });
 
       setStats((prev) => ({

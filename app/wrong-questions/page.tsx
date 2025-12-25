@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { authGet, authDelete } from "@/lib/api";
 
 interface WrongQuestion {
   id: number;
@@ -24,7 +25,7 @@ export default function WrongQuestionsPage() {
   const loadWrongQuestions = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/wrong-questions");
+      const response = await authGet("/api/wrong-questions");
       const data = await response.json();
 
       if (data.questions) {
@@ -48,10 +49,7 @@ export default function WrongQuestionsPage() {
     }
 
     try {
-      const response = await fetch(`/api/wrong-questions?id=${id}`, {
-        method: "DELETE",
-      });
-
+      const response = await authDelete(`/api/wrong-questions?id=${id}`);
       const data = await response.json();
 
       if (data.success) {

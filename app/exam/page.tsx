@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { authPost } from "@/lib/api";
 
 interface Question {
   id: number;
@@ -39,17 +40,11 @@ export default function ExamPage() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/exam", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: examName,
-          singleCount,
-          multipleCount,
-          judgeCount,
-        }),
+      const response = await authPost("/api/exam", {
+        name: examName,
+        singleCount,
+        multipleCount,
+        judgeCount,
       });
 
       const data = await response.json();

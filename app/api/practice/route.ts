@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 interface QuestionRow {
   id: number;
@@ -47,41 +48,47 @@ export async function GET(request: NextRequest) {
 // 提交练习答案
 export async function POST(request: NextRequest) {
   try {
+    // 获取当前用户
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+
     const { questionId, userAnswer, isCorrect } = await request.json();
 
     if (!questionId || userAnswer === undefined || isCorrect === undefined) {
       return NextResponse.json({ error: "参数不完整" }, { status: 400 });
     }
 
-    // 记录练习
+    // 记录练习（关联用户ID）
     const practiceStmt = db.prepare(`
-      INSERT INTO practice_records (question_id, user_answer, is_correct)
-      VALUES (?, ?, ?)
+      INSERT INTO practice_records (user_id, question_id, user_answer, is_correct)
+      VALUES (?, ?, ?, ?)
     `);
-    practiceStmt.run(questionId, userAnswer, isCorrect ? 1 : 0);
+    practiceStmt.run(user.id, questionId, userAnswer, isCorrect ? 1 : 0);
 
     // 如果答错，添加到错题本
     if (!isCorrect) {
       const checkStmt = db.prepare(
-        "SELECT * FROM wrong_questions WHERE question_id = ?"
+        "SELECT * FROM wrong_questions WHERE question_id = ? AND user_id = ?"
       );
-      const existing = checkStmt.get(questionId);
+      const existing = checkStmt.get(questionId, user.id);
 
       if (existing) {
         // 更新错题记录
         const updateStmt = db.prepare(`
           UPDATE wrong_questions
           SET wrong_count = wrong_count + 1, user_answer = ?, last_wrong_at = CURRENT_TIMESTAMP
-          WHERE question_id = ?
+          WHERE question_id = ? AND user_id = ?
         `);
-        updateStmt.run(userAnswer, questionId);
+        updateStmt.run(userAnswer, questionId, user.id);
       } else {
-        // 新增错题记录
+        // 新增错题记录（关联用户ID）
         const insertStmt = db.prepare(`
-          INSERT INTO wrong_questions (question_id, user_answer)
-          VALUES (?, ?)
+          INSERT INTO wrong_questions (user_id, question_id, user_answer)
+          VALUES (?, ?, ?)
         `);
-        insertStmt.run(questionId, userAnswer);
+        insertStmt.run(user.id, questionId, userAnswer);
       }
     }
 

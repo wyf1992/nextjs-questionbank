@@ -176,7 +176,7 @@ export default function Home() {
               return (
                 <div
                   key={index}
-                  className="bg-white rounded-lg shadow-lg p-8 border-2 border-transparent opacity-75"
+                  className="hidden bg-white rounded-lg shadow-lg p-8 border-2 border-transparent opacity-75"
                 >
                   <div className="text-4xl mb-4">{card.icon}</div>
                   <h2 className="text-2xl font-bold text-gray-800 mb-2">

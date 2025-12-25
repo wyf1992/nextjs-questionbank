@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { authGet, authPut } from "@/lib/api";
 
 interface Question {
   id: number;
@@ -43,7 +44,7 @@ export default function ExamTakingPage() {
   useEffect(() => {
     const loadExamData = async () => {
       try {
-        const response = await fetch(`/api/exam?examId=${examId}`);
+        const response = await authGet(`/api/exam?examId=${examId}`);
         const data = await response.json();
 
         if (data.error) {
@@ -108,15 +109,9 @@ export default function ExamTakingPage() {
 
     setSubmitting(true);
     try {
-      const response = await fetch("/api/exam", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          examId: examData.id,
-          answers: userAnswers,
-        }),
+      const response = await authPut("/api/exam", {
+        examId: examData.id,
+        answers: userAnswers,
       });
 
       const result = await response.json();
