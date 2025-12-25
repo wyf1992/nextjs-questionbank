@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import path from "node:path";
+import bcrypt from "bcrypt";
 
 const dbPath = path.join(process.cwd(), "questionbank.db");
 const db = new Database(dbPath);
@@ -7,6 +8,18 @@ const db = new Database(dbPath);
 // 初始化数据库表
 export function initDatabase() {
   console.log("Initializing database...");
+
+  // 用户表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // 题目表
   db.exec(`
     CREATE TABLE IF NOT EXISTS questions (
@@ -20,15 +33,17 @@ export function initDatabase() {
     )
   `);
 
-  // 错题记录表
+  // 错题记录表（添加用户关联）
   db.exec(`
     CREATE TABLE IF NOT EXISTS wrong_questions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
       question_id INTEGER NOT NULL,
       user_answer TEXT,
       wrong_count INTEGER DEFAULT 1,
       last_wrong_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (question_id) REFERENCES questions(id)
+      FOREIGN KEY (question_id) REFERENCES questions(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
 
@@ -44,31 +59,49 @@ export function initDatabase() {
     )
   `);
 
-  // 试卷记录表
+  // 试卷记录表（添加用户关联）
   db.exec(`
     CREATE TABLE IF NOT EXISTS exam_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
       config_id INTEGER NOT NULL,
       questions TEXT NOT NULL,
       answers TEXT,
       score REAL,
       completed_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (config_id) REFERENCES exam_configs(id)
+      FOREIGN KEY (config_id) REFERENCES exam_configs(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
 
-  // 练习记录表
+  // 练习记录表（添加用户关联）
   db.exec(`
     CREATE TABLE IF NOT EXISTS practice_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
       question_id INTEGER NOT NULL,
       user_answer TEXT NOT NULL,
       is_correct INTEGER NOT NULL,
       practiced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (question_id) REFERENCES questions(id)
+      FOREIGN KEY (question_id) REFERENCES questions(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
+
+  // 插入默认管理员用户（用户名：admin，密码：admin123）
+  const adminCheck = db
+    .prepare("SELECT COUNT(*) as count FROM users WHERE username = 'admin'")
+    .get() as { count: number };
+  if (adminCheck.count === 0) {
+    const hashedPassword = bcrypt.hashSync("admin123", 10);
+    db.prepare(
+      "INSERT INTO users (username, password, role) VALUES (?, ?, ?)"
+    ).run("admin", hashedPassword, "admin");
+    console.log(
+      "Default admin user created (username: admin, password: admin123)"
+    );
+  }
 
   console.log("Database initialized.");
 }

@@ -97,11 +97,16 @@ export async function POST(request: NextRequest) {
 
     const insertMany = db.transaction((questions: ImportQuestion[]) => {
       for (const q of questions) {
+        if (!q.correctAnswer && !q.correct_answer) {
+          // 跳过缺少正确答案的题目
+          continue;
+        }
+        const correctAnswer = q.correctAnswer || q.correct_answer || "";
         stmt.run(
           q.type,
           q.content,
           q.options ? JSON.stringify(q.options) : null,
-          q.correctAnswer || q.correct_answer, // 支持两种字段名
+          correctAnswer,
           q.explanation || null
         );
       }
@@ -134,11 +139,17 @@ export async function PUT(request: NextRequest) {
       WHERE id = ?
     `);
 
+    if (!question.correctAnswer && !question.correct_answer) {
+      return NextResponse.json({ error: "缺少正确答案" }, { status: 400 });
+    }
+    const correctAnswer =
+      question.correct_answer || question.correctAnswer || "";
+
     stmt.run(
       question.type,
       question.content,
       question.options ? JSON.stringify(question.options) : null,
-      question.correct_answer || question.correctAnswer, // 支持两种字段名
+      correctAnswer,
       question.explanation || null,
       question.id
     );
