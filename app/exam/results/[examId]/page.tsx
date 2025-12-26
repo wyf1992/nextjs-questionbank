@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { authGet } from "@/lib/api";
+import { formatLocalTime, calculateDuration, formatDuration } from "@/lib/time";
 
 interface Question {
   id: number;
@@ -134,24 +135,13 @@ export default function ExamResultsPage() {
     return userAnswer === correctAnswer;
   };
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours.toString().padStart(2, "0")}:${minutes
-      .toString()
-      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
   // 计算考试用时
   const calculateExamDuration = () => {
     if (!examData || !examData.completed_at || !examData.created_at) {
       return 0;
     }
 
-    const startTime = new Date(examData.created_at).getTime();
-    const endTime = new Date(examData.completed_at).getTime();
-    return Math.floor((endTime - startTime) / 1000); // 转换为秒
+    return calculateDuration(examData.created_at, examData.completed_at);
   };
 
   // 获取分数颜色
@@ -239,11 +229,11 @@ export default function ExamResultsPage() {
                 </h1>
                 <p className="text-gray-600 mt-2">
                   考试时间：
-                  {new Date(examData.created_at).toLocaleString("zh-CN")}
+                  {formatLocalTime(examData.created_at)}
                 </p>
                 <p className="text-gray-600">
                   完成时间：
-                  {new Date(examData.completed_at!).toLocaleString("zh-CN")}
+                  {formatLocalTime(examData.completed_at)}
                 </p>
               </div>
               <div className="text-right">
@@ -297,11 +287,11 @@ export default function ExamResultsPage() {
               <div className="bg-purple-50 p-6 rounded-lg text-center">
                 <div className="text-sm text-gray-600 mb-2">答题用时</div>
                 <div className="text-4xl font-bold text-purple-600">
-                  {formatTime(examDuration)}
+                  {formatDuration(examDuration)}
                 </div>
                 <div className="text-sm text-gray-600 mt-2">
                   平均每题：
-                  {formatTime(
+                  {formatDuration(
                     Math.floor(examDuration / examResults.totalCount)
                   )}
                 </div>

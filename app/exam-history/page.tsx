@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { authGet } from "@/lib/api";
+import { formatLocalTime } from "@/lib/time";
 
 interface ExamRecord {
   id: number;
@@ -102,14 +103,7 @@ function ExamHistoryContent() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatLocalTime(dateString);
   };
 
   const getScoreColor = (score: number | null) => {
