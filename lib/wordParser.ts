@@ -303,7 +303,7 @@ function isOptionLine(line: string): boolean {
 
 // 从题目内容中提取答案
 function extractAnswerFromContent(question: ParsedQuestion): void {
-  const content = question.content;
+  const content = question.content.replace(//g, " ");
 
   // 尝试从题干中提取答案，例如："空气中四乙基铅测定方法是（A）"
   const answerInParentheses = content.match(
@@ -431,9 +431,12 @@ function isSingleAnswer(answer: string): boolean {
 // 规范化选项，按A，B，C，D， E 再次分割
 function normalizeOption(option: string[]): string[] {
   return option.flatMap((opt) => {
-    const splitOptions = opt
-      .split(/[\s](?=[A-E])/)
-      .map((o) => o.trim().replace(/^[A-E][、.\s．]?/, ""));
+    const splitOptions = opt.split(/[\s](?=[A-E])/).map((o) =>
+      o
+        .trim()
+        .replace(/^[A-E][、.\s．]?/, "")
+        .replace(//g, " ")
+    );
     return splitOptions;
   });
 }
