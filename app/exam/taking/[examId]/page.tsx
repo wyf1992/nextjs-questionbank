@@ -161,49 +161,9 @@ export default function ExamTakingPage() {
     return letter;
   };
 
-  // 处理选择题答案选择
-  const handleChoiceAnswer = (question: Question, optionContent: string) => {
-    const letter = getOptionLetter(question, optionContent);
-
-    if (question.type === "single") {
-      // 单选题：直接存储字母
-      handleAnswerChange(question.id, letter);
-    } else if (question.type === "multiple") {
-      // 多选题：存储逗号分隔的字母
-      const currentAnswer = userAnswers[question.id] || "";
-      const currentLetters = currentAnswer ? currentAnswer.split(",") : [];
-
-      if (currentLetters.includes(letter)) {
-        // 如果已经选中，则取消选择
-        const newLetters = currentLetters.filter((l) => l !== letter);
-        handleAnswerChange(question.id, newLetters.join(","));
-      } else {
-        // 如果未选中，则添加
-        const newLetters = [...currentLetters, letter].sort();
-        handleAnswerChange(question.id, newLetters.join(","));
-      }
-    }
-  };
-
-  // 检查选项是否被选中
-  const isOptionSelected = (
-    question: Question,
-    optionContent: string
-  ): boolean => {
-    const letter = getOptionLetter(question, optionContent);
-    const currentAnswer = userAnswers[question.id];
-
-    if (!currentAnswer) return false;
-
-    if (question.type === "single") {
-      return currentAnswer === letter;
-    } else if (question.type === "multiple") {
-      const letters = currentAnswer.split(",");
-      return letters.includes(letter);
-    }
-
-    return false;
-  };
+  // 注意：handleChoiceAnswer函数已不再使用，逻辑已内联到JSX中
+  // 保留getOptionLetter和getOptionContent函数供其他可能的使用
+  // isOptionSelected函数也不再使用，逻辑已内联到JSX中
 
   const handleNextQuestion = () => {
     if (examData && currentQuestionIndex < examData.questions.length - 1) {
@@ -681,30 +641,72 @@ export default function ExamTakingPage() {
                     </div>
                   ) : currentQuestion.options ? (
                     <div className="space-y-3">
-                      {currentQuestion.options.map((option, index) => (
-                        <label
-                          key={index}
-                          className="flex items-center gap-2 md:gap-3 p-2 md:p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
-                        >
-                          <input
-                            type={
-                              currentQuestion.type === "single"
-                                ? "radio"
-                                : "checkbox"
-                            }
-                            name={`question-${currentQuestion.id}`}
-                            value={option}
-                            checked={isOptionSelected(currentQuestion, option)}
-                            onChange={() => {
-                              handleChoiceAnswer(currentQuestion, option);
-                            }}
-                            className="h-5 w-5"
-                          />
-                          <span className="text-gray-800">
-                            {String.fromCharCode(65 + index)}. {option}
-                          </span>
-                        </label>
-                      ))}
+                      {currentQuestion.options.map((option, index) => {
+                        const letter = String.fromCharCode(65 + index);
+                        const currentAnswer = userAnswers[currentQuestion.id];
+                        let checked = false;
+
+                        if (currentAnswer) {
+                          if (currentQuestion.type === "single") {
+                            checked = currentAnswer === letter;
+                          } else if (currentQuestion.type === "multiple") {
+                            const letters = currentAnswer.split(",");
+                            checked = letters.includes(letter);
+                          }
+                        }
+
+                        return (
+                          <label
+                            key={index}
+                            className="flex items-center gap-2 md:gap-3 p-2 md:p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type={
+                                currentQuestion.type === "single"
+                                  ? "radio"
+                                  : "checkbox"
+                              }
+                              name={`question-${currentQuestion.id}`}
+                              value={option}
+                              checked={checked}
+                              onChange={() => {
+                                // 直接使用index生成字母，避免调用getOptionLetter
+                                if (currentQuestion.type === "single") {
+                                  handleAnswerChange(
+                                    currentQuestion.id,
+                                    letter
+                                  );
+                                } else if (
+                                  currentQuestion.type === "multiple"
+                                ) {
+                                  // 多选题：存储逗号分隔的字母
+                                  const currentAnswer =
+                                    userAnswers[currentQuestion.id] || "";
+                                  const currentLetters = currentAnswer
+                                    ? currentAnswer.split(",")
+                                    : [];
+
+                                  // 切换选择状态：如果已选中则移除，否则添加
+                                  const newLetters = currentLetters.includes(
+                                    letter
+                                  )
+                                    ? currentLetters.filter((l) => l !== letter)
+                                    : [...currentLetters, letter].sort();
+
+                                  handleAnswerChange(
+                                    currentQuestion.id,
+                                    newLetters.join(",")
+                                  );
+                                }
+                              }}
+                              className="h-5 w-5"
+                            />
+                            <span className="text-gray-800">
+                              {String.fromCharCode(65 + index)}. {option}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   ) : null}
                 </div>
