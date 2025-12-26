@@ -18,16 +18,59 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get("type");
     const count = parseInt(searchParams.get("count") || "10");
+    const order = searchParams.get("order") || "random"; // 新增：排序方式
+    const startFrom = searchParams.get("startFrom") || "last"; // 新增：从新开始还是从上次开始
+    const user = await getCurrentUser(request);
 
     let query = "SELECT * FROM questions";
     const params: (string | number)[] = [];
 
+    // 构建WHERE条件
+    const whereConditions: string[] = [];
+
     if (type && ["single", "multiple", "judge"].includes(type)) {
-      query += " WHERE type = ?";
+      whereConditions.push("type = ?");
       params.push(type);
     }
 
-    query += " ORDER BY RANDOM() LIMIT ?";
+    // 如果是按序刷题，需要处理从上次开始还是从新开始
+    if (order === "sequential") {
+      let lastId = 0;
+
+      // 如果用户已登录且选择从上次开始，获取用户的刷题进度
+      if (user && startFrom === "last") {
+        const userStmt = db.prepare(
+          "SELECT sequential_practice_last_id FROM users WHERE id = ?"
+        );
+        const userData = userStmt.get(user.id) as
+          | { sequential_practice_last_id: number }
+          | undefined;
+        if (userData && userData.sequential_practice_last_id > 0) {
+          lastId = userData.sequential_practice_last_id;
+        }
+      }
+
+      console.log("Sequential practice last ID:", lastId);
+
+      // 如果从上次开始且有进度，则从lastId之后开始
+      if (lastId > 0) {
+        whereConditions.push("id > ?");
+        params.push(lastId);
+      }
+    }
+
+    if (whereConditions.length > 0) {
+      query += " WHERE " + whereConditions.join(" AND ");
+    }
+
+    // 根据排序方式添加ORDER BY子句
+    if (order === "sequential") {
+      query += " ORDER BY id ASC";
+    } else {
+      query += " ORDER BY RANDOM()";
+    }
+
+    query += " LIMIT ?";
     params.push(count);
 
     const stmt = db.prepare(query);
@@ -54,7 +97,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    const { questionId, userAnswer, isCorrect } = await request.json();
+    const { questionId, userAnswer, isCorrect, order, isLastQuestion } =
+      await request.json();
 
     if (!questionId || userAnswer === undefined || isCorrect === undefined) {
       return NextResponse.json({ error: "参数不完整" }, { status: 400 });
@@ -90,6 +134,14 @@ export async function POST(request: NextRequest) {
         `);
         insertStmt.run(user.id, questionId, userAnswer);
       }
+    }
+
+    // 如果是按序刷题并且是最后一题，更新用户的刷题进度
+    if (order === "sequential" && isLastQuestion) {
+      const updateStmt = db.prepare(`
+        UPDATE users SET sequential_practice_last_id = ? WHERE id = ?
+      `);
+      updateStmt.run(questionId, user.id);
     }
 
     return NextResponse.json({ success: true });

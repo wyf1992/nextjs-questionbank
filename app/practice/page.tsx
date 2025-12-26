@@ -23,6 +23,9 @@ export default function PracticePage() {
   const [loading, setLoading] = useState(false);
   const [questionType, setQuestionType] = useState<string>("all");
   const [questionCount, setQuestionCount] = useState(10);
+  const [questionOrder, setQuestionOrder] = useState<string>("random");
+  const [startFrom, setStartFrom] = useState<string>("last"); // 新增：从新开始还是从上次开始
+  const [lastQuestionId, setLastQuestionId] = useState<number | null>(null);
   const [stats, setStats] = useState({ correct: 0, total: 0 });
 
   const loadQuestions = async () => {
@@ -33,6 +36,8 @@ export default function PracticePage() {
         params.append("type", questionType);
       }
       params.append("count", questionCount.toString());
+      params.append("order", questionOrder);
+      params.append("startFrom", startFrom);
 
       const response = await fetch(`/api/practice?${params}`);
       const data = await response.json();
@@ -44,6 +49,12 @@ export default function PracticePage() {
         setSelectedOptions([]);
         setShowResult(false);
         setStats({ correct: 0, total: 0 });
+
+        // 如果是按序刷题，更新最后一道题的ID
+        if (questionOrder === "sequential") {
+          const lastQuestion = data.questions[data.questions.length - 1];
+          setLastQuestionId(lastQuestion.id);
+        }
       } else {
         alert("题库中没有符合条件的题目");
       }
@@ -73,6 +84,8 @@ export default function PracticePage() {
         questionId: currentQuestion.id,
         userAnswer: answer,
         isCorrect: correct,
+        order: questionOrder,
+        isLastQuestion: currentIndex === questions.length - 1,
       });
 
       setStats((prev) => ({
@@ -90,6 +103,15 @@ export default function PracticePage() {
       setUserAnswer("");
       setSelectedOptions([]);
       setShowResult(false);
+    } else {
+      // 如果是最后一题，重新加载题目继续刷题
+      // 如果是按序刷题，更新最后一道题的ID
+      if (questionOrder === "sequential" && questions.length > 0) {
+        const lastQuestion = questions[questions.length - 1];
+        setLastQuestionId(lastQuestion.id);
+      }
+      setStartFrom("last");
+      loadQuestions();
     }
   };
 
@@ -160,6 +182,42 @@ export default function PracticePage() {
                   className="w-full border border-gray-300 rounded-lg p-2"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  题目顺序
+                </label>
+                <select
+                  value={questionOrder}
+                  onChange={(e) => {
+                    setQuestionOrder(e.target.value);
+                    // 当切换顺序类型时，重置开始方式
+                    if (e.target.value !== "sequential") {
+                      setStartFrom("last");
+                    }
+                  }}
+                  className="w-full border border-gray-300 rounded-lg p-2"
+                >
+                  <option value="random">随机</option>
+                  <option value="sequential">按序</option>
+                </select>
+              </div>
+
+              {questionOrder === "sequential" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    开始方式
+                  </label>
+                  <select
+                    value={startFrom}
+                    onChange={(e) => setStartFrom(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg p-2"
+                  >
+                    <option value="last">从上次开始</option>
+                    <option value="new">从新开始</option>
+                  </select>
+                </div>
+              )}
 
               <button
                 onClick={loadQuestions}
@@ -353,16 +411,10 @@ export default function PracticePage() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => {
-                      setQuestions([]);
-                      setCurrentIndex(0);
-                      setUserAnswer("");
-                      setSelectedOptions([]);
-                      setShowResult(false);
-                    }}
+                    onClick={loadQuestions}
                     className="flex-1 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 font-medium"
                   >
-                    完成练习
+                    继续刷题
                   </button>
                 )}
               </>
