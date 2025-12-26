@@ -44,8 +44,7 @@ export default function LoginPage() {
         // 跳转到首页或重定向来源页面
         const urlParams = new URLSearchParams(window.location.search);
         const redirect = urlParams.get("redirect") || "/";
-        router.push(redirect);
-        router.refresh();
+        router.replace(redirect);
       } else {
         setError(data.error || "登录失败");
       }

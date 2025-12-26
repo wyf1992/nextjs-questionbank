@@ -54,7 +54,6 @@ export function proxy(request: NextRequest) {
 
   // 检查用户是否已登录
   const { isAuthenticated } = getUserFromRequest(request);
-
   if (!isAuthenticated) {
     // 重定向到登录页面
     const loginUrl = new URL("/login", request.url);
