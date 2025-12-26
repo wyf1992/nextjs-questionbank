@@ -43,9 +43,18 @@ export async function authFetch(url: string, options: ApiOptions = {}) {
   // 准备请求头
   const headers = new Headers(options.headers || {});
 
-  // 添加用户信息到请求头
+  // 添加用户信息到请求头（使用base64编码避免非ASCII字符问题）
   if (user) {
-    headers.set("x-user", JSON.stringify(user));
+    try {
+      // 将用户对象转换为JSON字符串，然后进行base64编码
+      const userJson = JSON.stringify(user);
+      const encodedUser = btoa(encodeURIComponent(userJson));
+      headers.set("x-user", encodedUser);
+    } catch (error) {
+      console.error("编码用户信息失败:", error);
+      // 如果编码失败，仍然尝试设置原始值（可能会失败）
+      headers.set("x-user", JSON.stringify(user));
+    }
   }
 
   // 添加内容类型头（如果是POST/PUT请求）

@@ -44,7 +44,21 @@ export default function LoginPage() {
         // 跳转到首页或重定向来源页面
         const urlParams = new URLSearchParams(window.location.search);
         const redirect = urlParams.get("redirect") || "/";
-        router.replace(redirect);
+
+        // 使用setTimeout确保导航在下一个事件循环中执行
+        // 避免与user-changed事件处理产生竞态条件
+        // 生产环境中可能需要更长的延迟
+        setTimeout(() => {
+          router.replace(redirect);
+
+          // 备选方案：如果router.replace没有生效，使用window.location
+          setTimeout(() => {
+            // 检查是否还在登录页面
+            if (window.location.pathname === "/login") {
+              window.location.href = redirect;
+            }
+          }, 100);
+        }, 0);
       } else {
         setError(data.error || "登录失败");
       }

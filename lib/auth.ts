@@ -30,11 +30,21 @@ export async function getCurrentUser(
       }
     }
 
-    // 从请求头中获取用户信息（前端通过header传递）
+    // 从请求头中获取用户信息（前端通过header传递，使用base64编码）
     const userHeader = request.headers.get("x-user");
     if (userHeader) {
       try {
-        const user = JSON.parse(userHeader);
+        // 尝试解码base64编码的用户信息
+        let userJson: string;
+        try {
+          // 先尝试base64解码，然后URI解码
+          userJson = decodeURIComponent(atob(userHeader));
+        } catch (decodeError) {
+          // 如果解码失败，可能是旧格式的JSON字符串
+          userJson = userHeader;
+        }
+
+        const user = JSON.parse(userJson);
         if (user && user.id && user.username) {
           return user as User;
         }
