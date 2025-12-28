@@ -65,7 +65,7 @@ export default function UserManagementPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number | string) => {
     if (!confirm("确定要删除这个用户吗？")) {
       return;
     }
