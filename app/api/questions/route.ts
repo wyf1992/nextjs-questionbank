@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 interface QuestionRow {
   id: number;
@@ -16,16 +17,27 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get("type");
+    const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
     let query = "SELECT * FROM questions";
     const params: (string | number)[] = [];
+    const conditions: string[] = [];
 
     if (type && ["single", "multiple", "judge"].includes(type)) {
-      query += " WHERE type = ?";
+      conditions.push("type = ?");
       params.push(type);
+    }
+
+    if (search && search.trim()) {
+      conditions.push("content LIKE ?");
+      params.push(`%${search.trim()}%`);
+    }
+
+    if (conditions.length > 0) {
+      query += " WHERE " + conditions.join(" AND ");
     }
 
     query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
@@ -36,36 +48,23 @@ export async function GET(request: NextRequest) {
 
     // 获取总数
     let countQuery = "SELECT COUNT(*) as total FROM questions";
-    if (type && ["single", "multiple", "judge"].includes(type)) {
-      countQuery += " WHERE type = ?";
-      const countStmt = db.prepare(countQuery);
-      const result = countStmt.get(type) as { total: number };
-      const total = result.total;
-
-      return NextResponse.json({
-        questions: questions.map((q) => ({
-          ...q,
-          options: q.options ? JSON.parse(q.options) : null,
-        })),
-        total,
-        page,
-        limit,
-      });
-    } else {
-      const countStmt = db.prepare(countQuery);
-      const result = countStmt.get() as { total: number };
-      const total = result.total;
-
-      return NextResponse.json({
-        questions: questions.map((q) => ({
-          ...q,
-          options: q.options ? JSON.parse(q.options) : null,
-        })),
-        total,
-        page,
-        limit,
-      });
+    if (conditions.length > 0) {
+      countQuery += " WHERE " + conditions.join(" AND ");
     }
+
+    const countStmt = db.prepare(countQuery);
+    const result = countStmt.get(...params.slice(0, -2)) as { total: number };
+    const total = result.total;
+
+    return NextResponse.json({
+      questions: questions.map((q) => ({
+        ...q,
+        options: q.options ? JSON.parse(q.options) : null,
+      })),
+      total,
+      page,
+      limit,
+    });
   } catch (error) {
     console.error("获取题目失败:", error);
     return NextResponse.json({ error: "获取题目失败" }, { status: 500 });
@@ -84,6 +83,19 @@ interface ImportQuestion {
 // 批量添加题目
 export async function POST(request: NextRequest) {
   try {
+    // 检查用户权限
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    }
+
+    if (user.role !== "admin") {
+      return NextResponse.json(
+        { error: "只有管理员可以添加题目" },
+        { status: 403 }
+      );
+    }
+
     const { questions } = await request.json();
 
     if (!Array.isArray(questions) || questions.length === 0) {
@@ -127,6 +139,19 @@ export async function POST(request: NextRequest) {
 // 更新题目
 export async function PUT(request: NextRequest) {
   try {
+    // 检查用户权限
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    }
+
+    if (user.role !== "admin") {
+      return NextResponse.json(
+        { error: "只有管理员可以更新题目" },
+        { status: 403 }
+      );
+    }
+
     const question = await request.json();
 
     if (!question.id) {
@@ -164,6 +189,19 @@ export async function PUT(request: NextRequest) {
 // 删除题目
 export async function DELETE(request: NextRequest) {
   try {
+    // 检查用户权限
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    }
+
+    if (user.role !== "admin") {
+      return NextResponse.json(
+        { error: "只有管理员可以删除题目" },
+        { status: 403 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get("id");
     const clearAll = searchParams.get("clearAll");

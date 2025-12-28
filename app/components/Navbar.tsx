@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { encodeId } from "@/lib/id";
 
 interface User {
-  id: number;
+  id: string | number;
   username: string;
   role: string;
 }
@@ -21,7 +22,18 @@ export default function Navbar() {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
-        return JSON.parse(storedUser);
+        const parsedUser = JSON.parse(storedUser);
+        // 检查是否过期（7天）
+        const now = Date.now();
+        const loginTime = parsedUser.loginTime || 0;
+        const sevenDays = 7 * 24 * 60 * 60 * 1000; // 7天
+
+        if (now - loginTime > sevenDays) {
+          // 已过期，清除数据
+          localStorage.removeItem("user");
+          return null;
+        }
+        return parsedUser;
       } catch (error) {
         console.error("解析用户信息失败:", error);
         return null;
@@ -42,7 +54,19 @@ export default function Navbar() {
       if (e.key === "user") {
         if (e.newValue) {
           try {
-            setUser(JSON.parse(e.newValue));
+            const parsedUser = JSON.parse(e.newValue);
+            // 检查是否过期（7天）
+            const now = Date.now();
+            const loginTime = parsedUser.loginTime || 0;
+            const sevenDays = 7 * 24 * 60 * 60 * 1000; // 7天
+
+            if (now - loginTime > sevenDays) {
+              // 已过期，清除数据
+              localStorage.removeItem("user");
+              setUser(null);
+            } else {
+              setUser(parsedUser);
+            }
           } catch (error) {
             console.error("解析用户信息失败:", error);
             setUser(null);
@@ -73,15 +97,25 @@ export default function Navbar() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // 调用登出API清除服务端cookie
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error("登出API调用失败:", error);
+    }
+
+    // 清除客户端存储
     localStorage.removeItem("user");
-    // 清除 cookie
-    document.cookie = "user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     setUser(null);
+
     // 触发自定义事件，通知其他组件用户已登出
     window.dispatchEvent(
       new CustomEvent("user-changed", { detail: { user: null } })
     );
+
     router.push("/login");
   };
 
@@ -173,14 +207,14 @@ export default function Navbar() {
                 >
                   考试记录
                 </Link>
+                <Link
+                  href="/questions"
+                  className="text-gray-600 hover:text-blue-600"
+                >
+                  题库管理
+                </Link>
                 {user.role === "admin" && (
                   <>
-                    <Link
-                      href="/questions"
-                      className="text-gray-600 hover:text-blue-600"
-                    >
-                      题库管理
-                    </Link>
                     <Link
                       href="/import"
                       className="text-gray-600 hover:text-blue-600"

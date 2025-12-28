@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatLocalTime } from "@/lib/time";
+import { useAuth } from "@/lib/useAuth";
+import { decodeId } from "@/lib/id";
 
 interface User {
-  id: number;
+  id: string | number;
   username: string;
   role: string;
   created_at: string;
@@ -15,11 +17,8 @@ export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [currentUser, setCurrentUser] = useState<{
-    id: number;
-    role: string;
-  } | null>(null);
   const router = useRouter();
+  const { user, isLoggedIn, isAdmin, loading: authLoading } = useAuth();
 
   // 编辑状态
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -33,28 +32,20 @@ export default function UserManagementPage() {
   const [newRole, setNewRole] = useState("user");
 
   useEffect(() => {
-    // 检查用户是否登录且为管理员
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
+    if (authLoading) return;
+
+    if (!isLoggedIn) {
       router.push("/login");
       return;
     }
 
-    try {
-      const user = JSON.parse(storedUser);
-      setCurrentUser(user);
-
-      if (user.role !== "admin") {
-        setError("只有管理员可以访问此页面");
-        return;
-      }
-
-      fetchUsers();
-    } catch (err) {
-      console.error("解析用户信息失败:", err);
-      router.push("/login");
+    if (!isAdmin) {
+      router.push("/not-found");
+      return;
     }
-  }, [router]);
+
+    fetchUsers();
+  }, [authLoading, isLoggedIn, isAdmin, router]);
 
   const fetchUsers = async () => {
     try {
@@ -173,7 +164,7 @@ export default function UserManagementPage() {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl text-gray-600">加载中...</div>
@@ -278,38 +269,39 @@ export default function UserManagementPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id}>
+                {users.map((userItem) => (
+                  <tr key={userItem.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.id}
+                      {userItem.id}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.username}
+                      {userItem.username}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          user.role === "admin"
+                          userItem.role === "admin"
                             ? "bg-purple-100 text-purple-800"
                             : "bg-green-100 text-green-800"
                         }`}
                       >
-                        {user.role === "admin" ? "管理员" : "普通用户"}
+                        {userItem.role === "admin" ? "管理员" : "普通用户"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatLocalTime(user.created_at)}
+                      {formatLocalTime(userItem.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
-                        onClick={() => handleEdit(user)}
+                        onClick={() => handleEdit(userItem)}
                         className="text-blue-600 hover:text-blue-900 mr-4"
                       >
                         编辑
                       </button>
-                      {user.id !== currentUser?.id && (
+                      {decodeId(userItem.id as string) !==
+                        decodeId(user?.id as string) && (
                         <button
-                          onClick={() => handleDelete(user.id)}
+                          onClick={() => handleDelete(userItem.id)}
                           className="text-red-600 hover:text-red-900"
                         >
                           删除

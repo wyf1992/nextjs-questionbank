@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { encodeId } from "@/lib/id";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -28,17 +29,20 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // 保存用户信息到 localStorage（客户端使用）
-        localStorage.setItem("user", JSON.stringify(data.user));
+        // 对ID进行编码后存储到localStorage
+        const userWithEncodedId = {
+          ...data.user,
+          id: encodeId(data.user.id),
+          loginTime: Date.now(), // 记录登录时间，用于7天过期检查
+        };
 
-        // 设置 cookie（服务端使用）
-        document.cookie = `user=${JSON.stringify(
-          data.user
-        )}; path=/; max-age=86400`; // 24小时
+        localStorage.setItem("user", JSON.stringify(userWithEncodedId));
 
         // 触发自定义事件，通知 Navbar 和其他组件用户信息已更新
         window.dispatchEvent(
-          new CustomEvent("user-changed", { detail: { user: data.user } })
+          new CustomEvent("user-changed", {
+            detail: { user: userWithEncodedId },
+          })
         );
 
         // 跳转到首页或重定向来源页面
@@ -140,13 +144,6 @@ export default function LoginPage() {
               立即注册
             </Link>
           </p>
-        </div>
-
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <div className="text-center text-sm text-gray-500">
-            <p>默认管理员账号：admin / admin123</p>
-            <p className="mt-1">普通用户请先注册</p>
-          </div>
         </div>
       </div>
     </div>

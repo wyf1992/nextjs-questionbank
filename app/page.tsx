@@ -77,17 +77,17 @@ export default function Home() {
       color: "hover:border-indigo-500",
       available: true,
     },
-  ];
-
-  const adminCards = [
     {
       title: "题库管理",
       description: "查看、编辑、删除题目，管理题库内容，支持分类筛选",
       href: "/questions",
       icon: "📚",
       color: "hover:border-yellow-500",
-      available: user?.role === "admin",
+      available: true,
     },
+  ];
+
+  const adminCards = [
     {
       title: "导入题库",
       description: "上传 Word 文档，自动解析题目，支持预览和编辑后入库",

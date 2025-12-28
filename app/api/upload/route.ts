@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseWordDocument } from "@/lib/wordParser";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
+    // 检查用户权限
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    }
+
+    if (user.role !== "admin") {
+      return NextResponse.json(
+        { error: "只有管理员可以上传题目" },
+        { status: 403 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File;
 

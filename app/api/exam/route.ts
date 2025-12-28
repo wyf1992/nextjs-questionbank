@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     // 获取当前用户
     const user = await getCurrentUser(request);
+
     if (!user) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }

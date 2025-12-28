@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 
 export interface User {
-  id: number;
+  id: string | number; // 支持编码后的字符串ID和数据库数字ID
   username: string;
   role: string;
 }
@@ -22,6 +22,7 @@ export async function getCurrentUser(
     if (userCookie) {
       try {
         const user = JSON.parse(userCookie.value);
+        console.log("Parsed user from header:", user);
         if (user && user.id && user.username) {
           return user as User;
         }
@@ -45,6 +46,7 @@ export async function getCurrentUser(
         }
 
         const user = JSON.parse(userJson);
+        console.log("Parsed user from header:", user);
         if (user && user.id && user.username) {
           return user as User;
         }

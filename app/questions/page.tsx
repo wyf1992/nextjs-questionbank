@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/useAuth";
 
 interface Question {
   id: number;
@@ -19,8 +20,10 @@ export default function QuestionsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [questionType, setQuestionType] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [message, setMessage] = useState("");
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const { user, isAdmin, loading: authLoading } = useAuth();
 
   const limit = 20;
 
@@ -32,6 +35,9 @@ export default function QuestionsPage() {
       params.append("limit", limit.toString());
       if (questionType !== "all") {
         params.append("type", questionType);
+      }
+      if (searchQuery.trim()) {
+        params.append("search", searchQuery.trim());
       }
 
       const response = await fetch(`/api/questions?${params}`);
@@ -54,6 +60,11 @@ export default function QuestionsPage() {
   }, [page, questionType]);
 
   const handleDelete = async (id: number) => {
+    if (!isAdmin) {
+      setMessage("权限不足");
+      return;
+    }
+
     if (!confirm("确定要删除这道题目吗？")) {
       return;
     }
@@ -78,6 +89,11 @@ export default function QuestionsPage() {
   };
 
   const handleSaveEdit = async () => {
+    if (!isAdmin) {
+      setMessage("权限不足");
+      return;
+    }
+
     if (!editingQuestion) return;
 
     try {
@@ -109,6 +125,11 @@ export default function QuestionsPage() {
   };
 
   const handleClearAll = async () => {
+    if (!isAdmin) {
+      setMessage("权限不足");
+      return;
+    }
+
     if (
       !confirm(
         "警告：这将清除所有题目、错题记录、试卷记录和练习记录！此操作不可恢复。\n\n确定要清除所有题库吗？"
@@ -205,7 +226,7 @@ export default function QuestionsPage() {
           </div>
 
           <div className="flex justify-between items-center mb-6">
-            <div className="flex gap-4">
+            <div className="flex gap-4 items-center">
               <select
                 value={questionType}
                 onChange={(e) => {
@@ -219,13 +240,44 @@ export default function QuestionsPage() {
                 <option value="multiple">多选题</option>
                 <option value="judge">判断题</option>
               </select>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="搜索题目内容..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="border border-gray-300 rounded-lg p-2 w-64"
+                />
+                <button
+                  onClick={() => {
+                    setPage(1);
+                    loadQuestions();
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  筛选
+                </button>
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setPage(1);
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
-            <button
-              onClick={handleClearAll}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              清除所有题库
-            </button>
+            {isAdmin && (
+              <button
+                onClick={handleClearAll}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                清除所有题库
+              </button>
+            )}
           </div>
 
           {message && (
@@ -286,18 +338,22 @@ export default function QuestionsPage() {
                           </span>
                         </div>
                         <div className="flex  gap-2 items-center">
-                          <button
-                            onClick={() => setEditingQuestion(q)}
-                            className="text-blue-600 hover:text-blue-800 text-sm"
-                          >
-                            编辑
-                          </button>
-                          <button
-                            onClick={() => handleDelete(q.id)}
-                            className="text-red-600 hover:text-red-800 text-sm"
-                          >
-                            删除
-                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => setEditingQuestion(q)}
+                                className="text-blue-600 hover:text-blue-800 text-sm"
+                              >
+                                编辑
+                              </button>
+                              <button
+                                onClick={() => handleDelete(q.id)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                删除
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -365,7 +421,7 @@ export default function QuestionsPage() {
       </div>
 
       {/* 编辑模态框 */}
-      {editingQuestion && (
+      {editingQuestion && isAdmin && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 md:p-4 z-50">
           <div className="bg-white rounded-lg shadow-lg p-4 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">编辑题目</h2>
