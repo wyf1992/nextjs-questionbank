@@ -225,7 +225,7 @@ export default function QuestionsPage() {
             <div className="text-sm text-gray-600">共 {total} 道题目</div>
           </div>
 
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col md:flex-row gap-2 justify-between items-center mb-6">
             <div className="flex gap-4 items-center">
               <select
                 value={questionType}
@@ -240,44 +240,48 @@ export default function QuestionsPage() {
                 <option value="multiple">多选题</option>
                 <option value="judge">判断题</option>
               </select>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 relative  ">
                 <input
                   type="text"
                   placeholder="搜索题目内容..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="border border-gray-300 rounded-lg p-2 w-64"
+                  className="border border-gray-300 rounded-lg p-2 pr-8 w-56  md:w-64"
                 />
-                <button
-                  onClick={() => {
-                    setPage(1);
-                    loadQuestions();
-                  }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  筛选
-                </button>
+
                 {searchQuery && (
                   <button
                     onClick={() => {
                       setSearchQuery("");
                       setPage(1);
                     }}
-                    className="text-gray-500 hover:text-gray-700"
+                    className="text-gray-500 hover:text-gray-700 absolute  left-50 md:left-58  "
                   >
                     ✕
                   </button>
                 )}
               </div>
             </div>
-            {isAdmin && (
+
+            <div className="flex gap-4 self-end">
               <button
-                onClick={handleClearAll}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                onClick={() => {
+                  setPage(1);
+                  loadQuestions();
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                清除所有题库
+                筛选
               </button>
-            )}
+              {isAdmin && (
+                <button
+                  onClick={handleClearAll}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  清除所有题库
+                </button>
+              )}
+            </div>
           </div>
 
           {message && (

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
+import { getSession, refreshSession } from "./session";
 
 export interface User {
   id: string | number; // 支持编码后的字符串ID和数据库数字ID
@@ -9,25 +10,32 @@ export interface User {
 
 /**
  * 从请求中获取当前用户
- * 首先尝试从cookie中获取，然后从请求头中获取
+ * 首先尝试从session中获取，然后从请求头中获取
  */
 export async function getCurrentUser(
   request: NextRequest
 ): Promise<User | null> {
   try {
-    // 从cookie中获取用户信息
+    // 从cookie中获取session ID
     const cookieStore = await cookies();
-    const userCookie = cookieStore.get("user");
+    const sessionId = cookieStore.get("session_id")?.value;
 
-    if (userCookie) {
+    if (sessionId) {
       try {
-        const user = JSON.parse(userCookie.value);
-        console.log("Parsed user from header:", user);
-        if (user && user.id && user.username) {
-          return user as User;
+        const session = getSession(sessionId);
+        if (session) {
+          // 刷新会话过期时间
+          refreshSession(sessionId);
+
+          console.log("Got user from session:", session.user_data);
+          return {
+            id: session.user_data.id,
+            username: session.user_data.username,
+            role: session.user_data.role,
+          };
         }
       } catch (error) {
-        console.error("解析用户cookie失败:", error);
+        console.error("解析session失败:", error);
       }
     }
 

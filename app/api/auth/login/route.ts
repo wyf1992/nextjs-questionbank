@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import db from "@/lib/db";
 import { cookies } from "next/headers";
+import { createSession } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,16 +35,23 @@ export async function POST(request: NextRequest) {
     // 返回用户信息（不包含密码）
     const { password: _, ...userWithoutPassword } = user;
 
-    // 设置 HttpOnly cookie
+    // 创建会话
+    const sessionId = await createSession(user.id, {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+    });
+
+    // 设置 HttpOnly cookie，只存储session ID
     const cookieStore = await cookies();
-    cookieStore.set("user", JSON.stringify(userWithoutPassword), {
+    cookieStore.set("session_id", sessionId, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      // secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7天
       path: "/",
     });
-
+    console.log("User logged in:", userWithoutPassword);
     return NextResponse.json({
       success: true,
       user: userWithoutPassword,

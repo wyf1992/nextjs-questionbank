@@ -90,6 +90,18 @@ export function initDatabase() {
     )
   `);
 
+  // 会话表（用于存储用户会话）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      user_data TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
   // 插入默认管理员用户（用户名：admin，密码：admin123）
   const adminCheck = db
     .prepare("SELECT COUNT(*) as count FROM users WHERE username = 'admin'")

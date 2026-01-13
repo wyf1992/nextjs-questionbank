@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
 
 // 用户类型定义
 interface User {
@@ -12,6 +13,7 @@ const publicPaths = [
   "/login",
   "/register",
   "/api/auth/login",
+  "/api/auth/logout",
   "/api/users", // 注册API
 ];
 
@@ -22,31 +24,40 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
-// 从请求中获取用户信息
+// 从请求中获取用户信息（使用session验证）
 function getUserFromRequest(request: NextRequest): {
   isAuthenticated: boolean;
   user?: User;
 } {
-  // 从 cookie 中获取用户信息
-  const userCookie = request.cookies.get("user");
+  // 从 cookie 中获取session ID
+  const sessionId = request.cookies.get("session_id")?.value;
 
-  if (userCookie) {
+  if (sessionId) {
     try {
-      const user: User = JSON.parse(userCookie.value);
-      return { isAuthenticated: true, user };
+      const session = getSession(sessionId);
+      if (session) {
+        return {
+          isAuthenticated: true,
+          user: {
+            id: session.user_data.id,
+            username: session.user_data.username,
+            role: session.user_data.role,
+          },
+        };
+      }
     } catch (error) {
-      console.error("解析用户cookie失败:", error);
+      console.error("验证session失败:", error);
     }
   }
 
-  // 从 localStorage 无法在服务端访问，所以主要依赖 cookie
-  // 如果 cookie 中没有，则认为未登录
+  // 如果没有有效的session，则认为未登录
   return { isAuthenticated: false };
 }
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  console.log("Middleware - Requested Path:", pathname);
   // 检查是否为公开路径
   if (isPublicPath(pathname)) {
     return NextResponse.next();

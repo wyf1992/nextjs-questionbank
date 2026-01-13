@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { deleteSession } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
   try {
-    // 清除 HttpOnly cookie
+    // 获取session ID并删除会话
     const cookieStore = await cookies();
-    cookieStore.set("user", "", {
+    const sessionId = cookieStore.get("session_id")?.value;
+
+    if (sessionId) {
+      deleteSession(sessionId);
+    }
+
+    // 清除 HttpOnly cookie
+    cookieStore.set("session_id", "", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      // secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 0, // 立即过期
       path: "/",
