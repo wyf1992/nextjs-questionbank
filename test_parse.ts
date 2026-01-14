@@ -4,7 +4,7 @@ import { parseWordDocument } from "./lib/wordParser";
 async function test() {
   try {
     // 读取test.docx文件   职业卫生技术服务机构应当在有效期届满三个月前向原资质认可机关提出延续申请
-    const buffer = fs.readFileSync("./allquestions.docx");
+    const buffer = fs.readFileSync("./111.docx");
 
     // 解析文档
     const questions = await parseWordDocument(buffer);
@@ -33,6 +33,7 @@ async function test() {
       }
 
       console.log(`   答案：${q.correctAnswer}`);
+      console.log(`   解析：${q.explanation}`);
       console.log("---");
     });
 

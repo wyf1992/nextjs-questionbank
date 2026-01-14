@@ -68,6 +68,7 @@ export async function parseWordDocument(
         content: "",
         correctAnswer: "",
         options: type === "judge" ? undefined : [],
+        explanation: "",
       };
       collectingOptions = type !== "judge";
 
@@ -104,9 +105,11 @@ export async function parseWordDocument(
           ? "single"
           : currentQuestion.type;
 
-        questions.push(currentQuestion);
-        questionCount++;
-        currentQuestion = null;
+        if (!lines[i + 1].startsWith("解析")) {
+          questions.push(currentQuestion);
+          questionCount++;
+          currentQuestion = null;
+        }
         collectingOptions = false;
       } else {
         // 如果没有当前题目，但遇到了答案行，说明上一个题目可能没有正确结束
@@ -139,12 +142,15 @@ export async function parseWordDocument(
               ? "single"
               : currentQuestion.type;
 
-            questions.push(currentQuestion);
-            questionCount++;
-            currentQuestion = null;
+            if (!lines[i + 1].startsWith("解析")) {
+              questions.push(currentQuestion);
+              questionCount++;
+              currentQuestion = null;
+            }
           }
         }
       }
+
       i++;
       continue;
     }
@@ -183,6 +189,17 @@ export async function parseWordDocument(
       continue;
     }
 
+    // 检查是否是解析行
+    if (line.startsWith("解析")) {
+      currentQuestion.explanation = line.replace(/^解析[:：\s]?/, "").trim();
+
+      questions.push(currentQuestion);
+      questionCount++;
+      currentQuestion = null;
+
+      i++;
+      continue;
+    }
     // 处理题目内容
     if (currentQuestion.content === "") {
       // 第一行非类型、非答案的内容是题目
@@ -351,6 +368,11 @@ function isAnswerLine(line: string): boolean {
 
 // 检查是否是潜在的题目开始
 function isPotentialQuestionStart(line: string, prevLine: string): boolean {
+  // 如果以’解析‘开头，则认为不是题目
+  if (line.startsWith("解析")) {
+    return false;
+  }
+
   // 如果上一行是答案行，那么这一行可能是新题目
   if (isAnswerLine(prevLine)) {
     return true;
