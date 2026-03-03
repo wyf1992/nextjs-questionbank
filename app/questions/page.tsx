@@ -17,6 +17,7 @@ interface Question {
 export default function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [total, setTotal] = useState(0);
@@ -198,6 +199,117 @@ export default function QuestionsPage() {
     setPage(clamped);
   };
 
+  const escapeHtml = (text: string) =>
+    text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const buildWordContent = (items: Question[]) => {
+    const questionBlocks = items
+      .map((q, index) => {
+        const optionsHtml =
+          q.options && q.options.length > 0
+            ? q.options
+                .map(
+                  (opt, optIndex) =>
+                    `<p>${String.fromCharCode(65 + optIndex)}. ${escapeHtml(
+                      opt
+                    )}</p>`
+                )
+                .join("")
+            : "";
+
+        const explanationHtml = q.explanation
+          ? `<p><strong>解析：</strong>${escapeHtml(q.explanation)}</p>`
+          : "";
+
+        return `
+          <div class="question-block">
+            <p><strong>第 ${index + 1} 题（${getTypeLabel(q.type)}）</strong></p>
+            <p>${escapeHtml(q.content)}</p>
+            ${optionsHtml}
+            <p><strong>正确答案：</strong>${escapeHtml(q.correct_answer)}</p>
+            ${explanationHtml}
+          </div>
+        `;
+      })
+      .join("");
+
+    return `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+            xmlns:w="urn:schemas-microsoft-com:office:word" 
+            xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <title>题库导出</title>
+        <style>
+          body { font-family: "Microsoft YaHei", sans-serif; line-height: 1.6; }
+          .question-block { margin-bottom: 20px; }
+          p { margin: 6px 0; }
+        </style>
+      </head>
+      <body>
+        <h1>题库导出</h1>
+        ${questionBlocks}
+      </body>
+      </html>
+    `;
+  };
+
+  const handleExportWord = async () => {
+    if (total === 0) {
+      setMessage("当前没有可导出的题目");
+      return;
+    }
+
+    setExporting(true);
+    setMessage("");
+
+    try {
+      const params = new URLSearchParams();
+      params.append("page", "1");
+      params.append("limit", total.toString());
+      if (questionType !== "all") {
+        params.append("type", questionType);
+      }
+      if (searchQuery.trim()) {
+        params.append("search", searchQuery.trim());
+      }
+
+      const response = await fetch(`/api/questions?${params.toString()}`);
+      const data = await response.json();
+
+      if (!data.questions || !Array.isArray(data.questions)) {
+        throw new Error("导出数据无效");
+      }
+
+      const wordContent = buildWordContent(data.questions as Question[]);
+      const blob = new Blob([`\ufeff${wordContent}`], {
+        type: "application/msword;charset=utf-8",
+      });
+
+      const fileName = `题库导出_${new Date().toISOString().slice(0, 10)}.doc`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setMessage(`导出成功，共 ${data.questions.length} 道题目`);
+    } catch (error) {
+      console.error("导出 Word 失败:", error);
+      setMessage("导出失败");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading && questions.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 py-8">
@@ -275,6 +387,13 @@ export default function QuestionsPage() {
             </div>
 
             <div className="flex gap-4 self-end">
+              <button
+                onClick={handleExportWord}
+                disabled={exporting || loading}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              >
+                {exporting ? "导出中..." : "导出 Word"}
+              </button>
               <button
                 onClick={() => {
                   setPage(1);
