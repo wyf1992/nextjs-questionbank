@@ -18,6 +18,7 @@ export default function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
   const [total, setTotal] = useState(0);
   const [questionType, setQuestionType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -59,6 +60,9 @@ export default function QuestionsPage() {
     loadQuestions();
   }, [page, questionType]);
 
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
   const handleDelete = async (id: number) => {
     if (!isAdmin) {
       setMessage("权限不足");
@@ -186,6 +190,13 @@ export default function QuestionsPage() {
   };
 
   const totalPages = Math.ceil(total / limit);
+
+  const handlePageJump = () => {
+    const nextPage = Number.parseInt(pageInput, 10);
+    if (Number.isNaN(nextPage)) return;
+    const clamped = Math.min(totalPages || 1, Math.max(1, nextPage));
+    setPage(clamped);
+  };
 
   if (loading && questions.length === 0) {
     return (
@@ -399,7 +410,7 @@ export default function QuestionsPage() {
               </div>
 
               {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-4 mt-8">
+                <div className="flex flex-col md:flex-row justify-center items-center gap-3 md:gap-4 mt-8">
                   <button
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page === 1}
@@ -417,6 +428,29 @@ export default function QuestionsPage() {
                   >
                     下一页
                   </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">跳转到</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handlePageJump();
+                      }}
+                      className="w-20 border border-gray-300 rounded-lg p-2 text-center"
+                    />
+                    <span className="text-sm text-gray-600">
+                      / {totalPages}
+                    </span>
+                    <button
+                      onClick={handlePageJump}
+                      className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      跳转
+                    </button>
+                  </div>
                 </div>
               )}
             </>

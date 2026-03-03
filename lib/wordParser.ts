@@ -105,7 +105,7 @@ export async function parseWordDocument(
           ? "single"
           : currentQuestion.type;
 
-        if (!lines[i + 1].startsWith("解析")) {
+        if (!lines[i + 1]?.startsWith("解析")) {
           questions.push(currentQuestion);
           questionCount++;
           currentQuestion = null;
@@ -142,7 +142,7 @@ export async function parseWordDocument(
               ? "single"
               : currentQuestion.type;
 
-            if (!lines[i + 1].startsWith("解析")) {
+            if (!lines[i + 1]?.startsWith("解析")) {
               questions.push(currentQuestion);
               questionCount++;
               currentQuestion = null;
@@ -190,7 +190,7 @@ export async function parseWordDocument(
     }
 
     // 检查是否是解析行
-    if (line.startsWith("解析")) {
+    if (line?.startsWith("解析")) {
       currentQuestion.explanation = line.replace(/^解析[:：\s]?/, "").trim();
 
       questions.push(currentQuestion);
@@ -369,7 +369,7 @@ function isAnswerLine(line: string): boolean {
 // 检查是否是潜在的题目开始
 function isPotentialQuestionStart(line: string, prevLine: string): boolean {
   // 如果以’解析‘开头，则认为不是题目
-  if (line.startsWith("解析")) {
+  if (line?.startsWith("解析")) {
     return false;
   }
 

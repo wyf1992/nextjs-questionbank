@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       query += " WHERE " + conditions.join(" AND ");
     }
 
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+    query += " ORDER BY created_at ASC LIMIT ? OFFSET ?";
     params.push(limit, offset);
 
     const stmt = db.prepare(query);
